@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.FileOutputStream;
 import java.nio.file.Path;
 import java.security.KeyStore;
 import java.util.*;
@@ -24,15 +25,16 @@ public class SignerController {
     @PostMapping("/signer")
     public ResponseEntity<String> signer(
             @RequestParam("file") MultipartFile file,
-            @RequestParam("certificate") String certificate,
+//            @RequestParam("certificate") String certificate,
+            @RequestParam("certificateFile") MultipartFile certificateFile,
             @RequestParam("password") String password
     ) {
         try {
-            this.signerService.uploadFile(file);
+            this.signerService.uploadFile(file, certificateFile);
 
-            Path certificatePath = this.signerService.getCertificatePath(certificate);
+//            Path certificatePath = this.signerService.getCertificatePath(certificate);
 
-            KeyStore keyStore = this.signerService.getKeyStore(certificatePath, password);
+            KeyStore keyStore = this.signerService.getKeyStore(certificateFile.getOriginalFilename(), password);
 
             byte[] signedDocument = this.signerService.signDocument(file.getOriginalFilename(), keyStore, password);
 
@@ -49,7 +51,7 @@ public class SignerController {
     @PostMapping("/checkSigner")
     public ResponseEntity<String> checkSigner(@RequestParam("file") MultipartFile file) {
         try {
-            this.signerService.uploadFile(file);
+            this.signerService.uploadFile(file, null);
             String filePath = this.signerService.getFilePath(file.getOriginalFilename()).toString();
 
             List<SignatureInformations> results = this.checkSignerService.validateAllSignatures(filePath);
