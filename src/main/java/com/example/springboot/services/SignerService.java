@@ -4,7 +4,6 @@ import com.example.springboot.FileStorageProperties;
 import org.apache.pdfbox.pdmodel.*;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.common.PDStream;
-import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.graphics.form.PDFormXObject;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
@@ -18,6 +17,7 @@ import org.apache.pdfbox.pdmodel.interactive.form.PDAcroForm;
 import org.apache.pdfbox.pdmodel.interactive.form.PDField;
 import org.apache.pdfbox.pdmodel.interactive.form.PDSignatureField;
 import org.apache.pdfbox.util.Matrix;
+import org.demoiselle.signer.core.extension.BasicCertificate;
 import org.demoiselle.signer.policy.impl.cades.factory.PKCS7Factory;
 import org.demoiselle.signer.policy.impl.cades.pkcs7.PKCS7Signer;
 import org.springframework.stereotype.Service;
@@ -32,7 +32,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.*;
 import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 import java.util.*;
+import java.util.List;
 
 @Service
 public class SignerService {
@@ -49,9 +51,11 @@ public class SignerService {
 
     public void uploadFile(MultipartFile file, MultipartFile certificateFile) throws IOException {
         //TODO Add hash in name
-        String fileName = StringUtils.cleanPath(Objects.requireNonNull(file.getOriginalFilename()));
-        Path fileLocation = this.fileUploadLocation.resolve(fileName).normalize();
-        file.transferTo(fileLocation);
+        if (file != null) {
+            String fileName = StringUtils.cleanPath(Objects.requireNonNull(file.getOriginalFilename()));
+            Path fileLocation = this.fileUploadLocation.resolve(fileName).normalize();
+            file.transferTo(fileLocation);
+        }
 
         if (certificateFile != null) {
             byte[] bytes = certificateFile.getBytes();
@@ -118,6 +122,7 @@ public class SignerService {
         Path certificateFilePath = this.fileUploadLocation.resolve(certificateFile).normalize();
         FileInputStream fileInputStream = new FileInputStream(certificateFilePath.toString());
         keyStore.load(fileInputStream, password.toCharArray());
+        fileInputStream.close();
 
         return keyStore;
     }
@@ -131,7 +136,7 @@ public class SignerService {
         return signer.doAttachedSign(content);
     }
 
-    public void createPDF(String fileName, byte[] signedDocument) throws IOException {
+    public void createPDF(String fileName, byte[] signedDocument, KeyStore keyStore) throws IOException {
         Path filePath = this.fileUploadLocation.resolve(fileName).normalize();
         File fileIn = new File(filePath.toString());
         PDDocument originalDocument = PDDocument.load(fileIn);
@@ -141,7 +146,11 @@ public class SignerService {
 
         PDSignature signature = this.getPDSignature();
 
-        originalDocument.addSignature(signature, this.getSignatureOptions(originalDocument, signedDocument.length));
+        originalDocument.addSignature(signature, this.getSignatureOptions(
+                originalDocument,
+                signedDocument.length,
+                keyStore
+        ));
 
         ExternalSigningSupport externalSigning = originalDocument.saveIncrementalForExternalSigning(output);
         externalSigning.setSignature(signedDocument);
@@ -178,7 +187,7 @@ public class SignerService {
         return signature;
     }
 
-    private SignatureOptions getSignatureOptions(PDDocument originalDocument, int signatureSize) throws IOException {
+    private SignatureOptions getSignatureOptions(PDDocument originalDocument, int signatureSize, KeyStore keyStore) throws IOException {
         SignatureOptions signatureOptions = new SignatureOptions();
         signatureOptions.setPreferredSignatureSize(signatureSize);
 
@@ -191,11 +200,11 @@ public class SignerService {
         float pageWidth = lastPage.getMediaBox().getWidth();
 //        float pageHeight = lastPage.getMediaBox().getHeight();
 
-        float centerX = (pageWidth - 70) / 2;
+        float centerX = (pageWidth - 100) / 2;
 //        float centerY = pageHeight / 2;
 
         signatureOptions.setPage(pageNum);
-        Rectangle2D humanRect = new Rectangle2D.Float(centerX, 10, 70, 70);
+        Rectangle2D humanRect = new Rectangle2D.Float(centerX, 10, 100, 100);
 
         Path signatureImageLocation = this.fileAssetLocation.resolve("selo_escuro.jpeg").normalize();
         File signatureImage = new File(signatureImageLocation.toString());
@@ -207,7 +216,8 @@ public class SignerService {
                 originalDocument,
                 pageNum,
                 rect,
-                signatureContent
+                signatureContent,
+                keyStore
         ));
 
         return signatureOptions;
@@ -270,7 +280,8 @@ public class SignerService {
             PDDocument srcDoc,
             int pageNum,
             PDRectangle rect,
-            byte[] signatureContent
+            byte[] signatureContent,
+            KeyStore keyStore
     ) throws IOException {
         try (PDDocument doc = new PDDocument()) {
             PDPage page = new PDPage(srcDoc.getPage(pageNum).getMediaBox());
@@ -337,9 +348,22 @@ public class SignerService {
                         imageHeight = bbox.getWidth();
                     }
                     cs.drawImage(img, 0, 0, imageWidth, imageHeight);
+
+                    String alias = keyStore.aliases().nextElement();
+                    X509Certificate certificate = (X509Certificate) keyStore.getCertificate(alias);
+                    BasicCertificate bc = new BasicCertificate(certificate);
+
+                    cs.setFont(PDType1Font.HELVETICA_BOLD, 6);
+                    cs.beginText();
+                    cs.newLineAtOffset(0, 0);
+                    cs.showText(bc.getName());
+                    cs.endText();
+
                     cs.restoreGraphicsState();
                 }
 
+            } catch (KeyStoreException e) {
+                throw new RuntimeException(e);
             }
 
             ByteArrayOutputStream baos = new ByteArrayOutputStream();

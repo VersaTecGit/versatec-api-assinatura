@@ -8,9 +8,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.FileOutputStream;
-import java.nio.file.Path;
 import java.security.KeyStore;
+import java.security.cert.X509Certificate;
 import java.util.*;
 
 @RestController
@@ -38,7 +37,7 @@ public class SignerController {
 
             byte[] signedDocument = this.signerService.signDocument(file.getOriginalFilename(), keyStore, password);
 
-            this.signerService.createPDF(file.getOriginalFilename(), signedDocument);
+            this.signerService.createPDF(file.getOriginalFilename(), signedDocument, keyStore);
 
 //            this.signerService.removeFile(file.getOriginalFilename());
 
@@ -59,12 +58,44 @@ public class SignerController {
             if (!results.isEmpty()) {
                 this.checkSignerService.printResult(results);
 
-                return ResponseEntity.ok("Verification completed - Valid document");
+                return ResponseEntity.ok("Valid document");
             } else {
-                return ResponseEntity.ok("Verification completed - Invalid document");
+                return ResponseEntity.ok("Invalid document");
             }
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/checkCertificate")
+    public ResponseEntity<String> checkCertificate(
+            @RequestParam("certificateFile") MultipartFile certificateFile,
+            @RequestParam("password") String password
+    ) {
+        try {
+            this.signerService.uploadFile(null, certificateFile);
+
+            KeyStore keyStore = this.signerService.getKeyStore(certificateFile.getOriginalFilename(), password);
+
+            String alias = keyStore.aliases().nextElement();
+            X509Certificate certificate = (X509Certificate) keyStore.getCertificate(alias);
+
+            Date dataAtual = new Date();
+
+            //// Incrementar 10 anos na data atual para testar a validação!
+//            Calendar calendar = Calendar.getInstance();
+//            calendar.setTime(dataAtual);
+//            calendar.add(Calendar.YEAR, 10);
+//            Date dataFutura = calendar.getTime();
+
+            certificate.checkValidity(dataAtual);
+
+            //// Caso precise buscar os dados do certificado
+//            BasicCertificate bc = new BasicCertificate(certificate);
+
+            return ResponseEntity.ok("Valid certificate");
+        } catch (Exception e) {
+            return ResponseEntity.ok("Invalid certificate");
         }
     }
 }

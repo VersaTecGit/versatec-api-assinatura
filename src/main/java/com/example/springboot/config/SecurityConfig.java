@@ -16,6 +16,7 @@ public class SecurityConfig {
         http.authorizeHttpRequests(requests -> {
             requests.requestMatchers("/signer").authenticated();
             requests.requestMatchers("/checkSigner").authenticated();
+            requests.requestMatchers("/checkCertificate").authenticated();
         });
 
         http.httpBasic(Customizer.withDefaults());
