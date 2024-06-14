@@ -98,6 +98,8 @@ public class CheckSignerService {
             }
         }
 
+        document.close();
+
         if (fileLen > rangeMax) {
             System.err.println("Erro! Foi identificado uma modificação incremental");
         }

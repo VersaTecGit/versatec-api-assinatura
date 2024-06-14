@@ -1,6 +1,7 @@
 package com.example.springboot.services;
 
 import com.example.springboot.FileStorageProperties;
+import org.apache.pdfbox.io.IOUtils;
 import org.apache.pdfbox.pdmodel.*;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.common.PDStream;
@@ -49,64 +50,36 @@ public class SignerService {
         this.fileDownloadLocation = Paths.get(fileStorageLocation.getDownloadDir()).toAbsolutePath().normalize();
     }
 
-    public void uploadFile(MultipartFile file, MultipartFile certificateFile) throws IOException {
+    public void uploadFile(MultipartFile file, String fileHash, MultipartFile certificateFile, String certificateHash) throws IOException {
         //TODO Add hash in name
         if (file != null) {
-            String fileName = StringUtils.cleanPath(Objects.requireNonNull(file.getOriginalFilename()));
+            String fileName = StringUtils.cleanPath(Objects.requireNonNull(fileHash));
             Path fileLocation = this.fileUploadLocation.resolve(fileName).normalize();
             file.transferTo(fileLocation);
         }
 
         if (certificateFile != null) {
             byte[] bytes = certificateFile.getBytes();
-            String certificateFileName = StringUtils.cleanPath(Objects.requireNonNull(certificateFile.getOriginalFilename()));
+            String certificateFileName = StringUtils.cleanPath(Objects.requireNonNull(certificateHash));
             Path certificateFileLocation = this.fileUploadLocation.resolve(certificateFileName).normalize();
             FileOutputStream fos = new FileOutputStream(certificateFileLocation.toString());
             fos.write(bytes);
             fos.close();
         }
-
-//        File fileIn = new File(targetFileLocation.toString());
-//        PDDocument newDocument = PDDocument.load(fileIn);
-
-//        PDPageTree pages = newDocument.getDocumentCatalog().getPages();
-//        PDPage lastPage = pages.get(pages.getCount() - 1);
-//
-//        float pageWidth = lastPage.getMediaBox().getWidth();
-//        float pageHeight = lastPage.getMediaBox().getHeight();
-//
-//        float centerX = pageWidth / 2;
-//        float centerY = pageHeight / 2;
-//
-//        PDImageXObject image = PDImageXObject.createFromFile("C:\\Projetos\\springboot\\selo_certificado_escuro.jpeg", newDocument);
-//
-//        PDPageContentStream contentStream = new PDPageContentStream(newDocument, lastPage, PDPageContentStream.AppendMode.APPEND, true, true);
-//
-//        contentStream.drawImage(image, centerX - (float) image.getWidth() / 2, 30);
-//
-//        int fontSize = 10;
-//        PDFont pdfFont = PDType1Font.HELVETICA_BOLD;
-//        contentStream.setFont(pdfFont, fontSize);
-//
-//        contentStream.beginText();
-//        contentStream.newLineAtOffset((pageWidth - 100) / 2, 20);
-//        contentStream.showText("this is line 11");
-//        contentStream.endText();
-//
-//        contentStream.beginText();
-//        contentStream.newLineAtOffset((pageWidth - 100) / 2, 9);
-//        contentStream.showText("this is line 22");
-//        contentStream.endText();
-//
-//        contentStream.close();
-
-//        newDocument.save(targetFileLocation.toString());
-//        newDocument.close();
     }
 
-    public void removeFile(String fileName) throws IOException {
-        Path filePath = this.fileUploadLocation.resolve(fileName).normalize();
-        Files.deleteIfExists(filePath);
+    public void removeAllFiles(String fileHash, String certificateHash) throws IOException {
+        if (fileHash != null) {
+            Path filePath = this.fileUploadLocation.resolve(fileHash).normalize();
+            Files.deleteIfExists(filePath);
+            Path signedFilePath = this.fileDownloadLocation.resolve(this.addSignatureName(fileHash)).normalize();
+            Files.deleteIfExists(signedFilePath);
+        }
+
+        if (certificateHash != null) {
+            Path certificatePath = this.fileUploadLocation.resolve(certificateHash).normalize();
+            Files.deleteIfExists(certificatePath);
+        }
     }
 
     public Path getCertificatePath(String certificate) {
@@ -116,15 +89,21 @@ public class SignerService {
         return Paths.get(location);
     }
 
-    public KeyStore getKeyStore(String certificateFile, String password) throws CertificateException, KeyStoreException, IOException, NoSuchAlgorithmException {
+    public KeyStore getKeyStore(String certificateFile, String password) throws KeyStoreException, IOException, CertificateException, NoSuchAlgorithmException {
         KeyStore keyStore = KeyStore.getInstance("PKCS12");
 
         Path certificateFilePath = this.fileUploadLocation.resolve(certificateFile).normalize();
         FileInputStream fileInputStream = new FileInputStream(certificateFilePath.toString());
-        keyStore.load(fileInputStream, password.toCharArray());
-        fileInputStream.close();
 
-        return keyStore;
+        try {
+            keyStore.load(fileInputStream, password.toCharArray());
+            fileInputStream.close();
+
+            return keyStore;
+        } catch (Exception e) {
+            fileInputStream.close();
+            throw e;
+        }
     }
 
     public byte[] signDocument(String fileName, KeyStore ks, String password) throws IOException, UnrecoverableKeyException, KeyStoreException, NoSuchAlgorithmException {
@@ -136,7 +115,7 @@ public class SignerService {
         return signer.doAttachedSign(content);
     }
 
-    public void createPDF(String fileName, byte[] signedDocument, KeyStore keyStore) throws IOException {
+    public byte[] createPDF(String fileName, byte[] signedDocument, KeyStore keyStore) throws IOException {
         Path filePath = this.fileUploadLocation.resolve(fileName).normalize();
         File fileIn = new File(filePath.toString());
         PDDocument originalDocument = PDDocument.load(fileIn);
@@ -146,17 +125,21 @@ public class SignerService {
 
         PDSignature signature = this.getPDSignature();
 
-        originalDocument.addSignature(signature, this.getSignatureOptions(
-                originalDocument,
-                signedDocument.length,
-                keyStore
-        ));
+        SignatureOptions signatureOptions = this.getSignatureOptions(signedDocument.length);
+
+        //// TODO: Add visual signature
+        //this.setVisualSignatureTemplate(signatureOptions, originalDocument, keyStore);
+
+        originalDocument.addSignature(signature, signatureOptions);
 
         ExternalSigningSupport externalSigning = originalDocument.saveIncrementalForExternalSigning(output);
         externalSigning.setSignature(signedDocument);
 
         originalDocument.saveIncremental(output);
         originalDocument.close();
+        IOUtils.closeQuietly(signatureOptions);
+
+        return Files.readAllBytes(downloadPath);
     }
 
     public Path getFilePath(String fileName) {
@@ -187,12 +170,14 @@ public class SignerService {
         return signature;
     }
 
-    private SignatureOptions getSignatureOptions(PDDocument originalDocument, int signatureSize, KeyStore keyStore) throws IOException {
+    private SignatureOptions getSignatureOptions(int signatureSize) {
         SignatureOptions signatureOptions = new SignatureOptions();
         signatureOptions.setPreferredSignatureSize(signatureSize);
 
-        System.out.println(signatureSize);
+        return signatureOptions;
+    }
 
+    private void setVisualSignatureTemplate(SignatureOptions signatureOptions, PDDocument originalDocument, KeyStore keyStore) throws IOException {
         PDPageTree pages = originalDocument.getDocumentCatalog().getPages();
         PDPage lastPage = pages.get(pages.getCount() - 1);
         int pageNum = pages.getCount() - 1;
@@ -219,8 +204,6 @@ public class SignerService {
                 signatureContent,
                 keyStore
         ));
-
-        return signatureOptions;
     }
 
     private String addSignatureName(String fileName) {
@@ -370,5 +353,10 @@ public class SignerService {
             doc.save(baos);
             return new ByteArrayInputStream(baos.toByteArray());
         }
+    }
+
+    public String getRandomHash() {
+        UUID uuid = UUID.randomUUID();
+        return uuid.toString();
     }
 }

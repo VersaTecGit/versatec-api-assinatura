@@ -14,9 +14,7 @@ public class SecurityConfig {
         http.csrf(AbstractHttpConfigurer::disable);
 
         http.authorizeHttpRequests(requests -> {
-            requests.requestMatchers("/signer").authenticated();
-            requests.requestMatchers("/checkSigner").authenticated();
-            requests.requestMatchers("/checkCertificate").authenticated();
+            requests.anyRequest().authenticated();
         });
 
         http.httpBasic(Customizer.withDefaults());

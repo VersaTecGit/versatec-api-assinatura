@@ -4,15 +4,19 @@ import com.example.springboot.services.CheckSignerService;
 import com.example.springboot.services.SignerService;
 import org.demoiselle.signer.policy.impl.cades.SignatureInformations;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.security.KeyStore;
 import java.security.cert.X509Certificate;
 import java.util.*;
 
 @RestController
+@RequestMapping("/api/v1")
 public class SignerController {
 
     @Autowired
@@ -21,39 +25,54 @@ public class SignerController {
     @Autowired
     CheckSignerService checkSignerService;
 
-    @PostMapping("/signer")
-    public ResponseEntity<String> signer(
+    @PostMapping("/sign")
+    public ResponseEntity<?> signer(
             @RequestParam("file") MultipartFile file,
 //            @RequestParam("certificate") String certificate,
-            @RequestParam("certificateFile") MultipartFile certificateFile,
+            @RequestParam("certificate") MultipartFile certificate,
             @RequestParam("password") String password
-    ) {
+    ) throws IOException {
+        String fileHash = this.signerService.getRandomHash() + "_" + file.getOriginalFilename();
+        String certificateHash = this.signerService.getRandomHash() + "_" + certificate.getOriginalFilename();
+
         try {
-            this.signerService.uploadFile(file, certificateFile);
+            this.signerService.uploadFile(file, fileHash, certificate, certificateHash);
 
 //            Path certificatePath = this.signerService.getCertificatePath(certificate);
 
-            KeyStore keyStore = this.signerService.getKeyStore(certificateFile.getOriginalFilename(), password);
+            KeyStore keyStore = this.signerService.getKeyStore(certificateHash, password);
 
-            byte[] signedDocument = this.signerService.signDocument(file.getOriginalFilename(), keyStore, password);
+            byte[] signedDocument = this.signerService.signDocument(fileHash, keyStore, password);
 
-            this.signerService.createPDF(file.getOriginalFilename(), signedDocument, keyStore);
+            byte[] signedPdfData = this.signerService.createPDF(fileHash, signedDocument, keyStore);
 
-//            this.signerService.removeFile(file.getOriginalFilename());
+            HttpHeaders headers = new HttpHeaders();
+            headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=signed_" + file.getOriginalFilename());
 
-            return ResponseEntity.ok("Signature completed");
+            this.signerService.removeAllFiles(fileHash, certificateHash);
+
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .contentLength(signedPdfData.length)
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .body(signedPdfData);
         } catch (Exception e) {
+            this.signerService.removeAllFiles(fileHash, certificateHash);
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
 
-    @PostMapping("/checkSigner")
-    public ResponseEntity<String> checkSigner(@RequestParam("file") MultipartFile file) {
-        try {
-            this.signerService.uploadFile(file, null);
-            String filePath = this.signerService.getFilePath(file.getOriginalFilename()).toString();
+    @PostMapping("/validate-signature")
+    public ResponseEntity<String> checkSigner(@RequestParam("file") MultipartFile file) throws IOException {
+        String fileHash = this.signerService.getRandomHash() + "_" + file.getOriginalFilename();
 
+        try {
+            this.signerService.uploadFile(file, fileHash, null, null);
+            String filePath = this.signerService.getFilePath(fileHash).toString();
+//
             List<SignatureInformations> results = this.checkSignerService.validateAllSignatures(filePath);
+
+            this.signerService.removeAllFiles(fileHash, null);
 
             if (!results.isEmpty()) {
                 this.checkSignerService.printResult(results);
@@ -63,38 +82,36 @@ public class SignerController {
                 return ResponseEntity.ok("Invalid document");
             }
         } catch (Exception e) {
+            this.signerService.removeAllFiles(fileHash, null);
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
 
-    @PostMapping("/checkCertificate")
+    @PostMapping("/validate-certificate")
     public ResponseEntity<String> checkCertificate(
-            @RequestParam("certificateFile") MultipartFile certificateFile,
+            @RequestParam("certificate") MultipartFile certificate,
             @RequestParam("password") String password
-    ) {
-        try {
-            this.signerService.uploadFile(null, certificateFile);
+    ) throws IOException {
+        String certificateHash = this.signerService.getRandomHash() + "_" + certificate.getOriginalFilename();
 
-            KeyStore keyStore = this.signerService.getKeyStore(certificateFile.getOriginalFilename(), password);
+        try {
+            this.signerService.uploadFile(null, null, certificate, certificateHash);
+
+            KeyStore keyStore = this.signerService.getKeyStore(certificateHash, password);
 
             String alias = keyStore.aliases().nextElement();
-            X509Certificate certificate = (X509Certificate) keyStore.getCertificate(alias);
+            X509Certificate certificateResult = (X509Certificate) keyStore.getCertificate(alias);
 
-            Date dataAtual = new Date();
-
-            //// Incrementar 10 anos na data atual para testar a validação!
-//            Calendar calendar = Calendar.getInstance();
-//            calendar.setTime(dataAtual);
-//            calendar.add(Calendar.YEAR, 10);
-//            Date dataFutura = calendar.getTime();
-
-            certificate.checkValidity(dataAtual);
+            certificateResult.checkValidity(new Date());
 
             //// Caso precise buscar os dados do certificado
-//            BasicCertificate bc = new BasicCertificate(certificate);
+            // BasicCertificate bc = new BasicCertificate(certificate);
+
+            this.signerService.removeAllFiles(null, certificateHash);
 
             return ResponseEntity.ok("Valid certificate");
         } catch (Exception e) {
+            this.signerService.removeAllFiles(null, certificateHash);
             return ResponseEntity.ok("Invalid certificate");
         }
     }
