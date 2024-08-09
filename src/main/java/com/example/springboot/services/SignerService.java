@@ -135,9 +135,7 @@ public class SignerService {
 
         SignatureOptions signatureOptions = this.getSignatureOptions(signedDocument.length);
 
-        if(this.visualSignatureConfig != null) {
-            this.setVisualSignatureTemplate(signature, signatureOptions, originalDocument, keyStore);
-        }
+        this.setVisualSignatureTemplate(signature, signatureOptions, originalDocument, keyStore);
 
         originalDocument.addSignature(signature, signatureOptions);
 
@@ -193,16 +191,11 @@ public class SignerService {
             KeyStore keyStore
     ) throws IOException {
         PDPageTree pages = originalDocument.getDocumentCatalog().getPages();
+        PDPage lastPage = pages.get(pages.getCount() - 1);
 
-        int pageNum = this.getPageIndex(this.visualSignatureConfig.pageIndex(), pages.getCount());
-
+        int pageNum = this.getPageIndex(pages.getCount());
         signatureOptions.setPage(pageNum);
-        Rectangle2D humanRect = new Rectangle2D.Float(
-            visualSignatureConfig.x(),
-            visualSignatureConfig.y(),
-            100,
-            100
-        );
+        var humanRect = this.getSignatureHumanRect(lastPage.getMediaBox().getWidth());
 
         Path signatureImageLocation = this.fileAssetLocation.resolve("selo_escuro.jpeg").normalize();
         File signatureImage = new File(signatureImageLocation.toString());
@@ -220,13 +213,36 @@ public class SignerService {
         ));
     }
 
-    private int getPageIndex(int pageIndex, int pageCount)
+    private int getPageIndex(int pageCount)
     {
-        if (pageIndex == -1 || pageIndex >= pageCount) {
+        if (
+            this.visualSignatureConfig == null ||
+            this.visualSignatureConfig.pageIndex() == -1 ||
+            this.visualSignatureConfig.pageIndex() >= pageCount
+        ) {
             return pageCount - 1;
         }
 
-        return pageIndex;
+        return this.visualSignatureConfig.pageIndex();
+    }
+
+    private Rectangle2D getSignatureHumanRect(float pageWidth)
+    {
+        if(this.visualSignatureConfig != null) {
+            return new Rectangle2D.Float(
+                visualSignatureConfig.x(),
+                visualSignatureConfig.y(),
+                100,
+                100
+            );
+        }
+
+        return new Rectangle2D.Float(
+            (pageWidth - 100) / 2,
+            10,
+            100,
+            100
+        );
     }
 
     private String addSignatureName(String fileName) {
