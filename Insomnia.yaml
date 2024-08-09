@@ -1,6 +1,6 @@
 _type: export
 __export_format: 4
-__export_date: 2024-08-06T20:58:02.122Z
+__export_date: 2024-08-09T11:15:01.537Z
 __export_source: insomnia.desktop.app:v9.3.2
 resources:
   - _id: req_0513f196c9f44e9fa16a651289da8be0
@@ -60,7 +60,7 @@ resources:
     _type: workspace
   - _id: req_10d81836f3fe4f9b9e5d3c1c49263581
     parentId: wrk_scratchpad
-    modified: 1722976705439
+    modified: 1723038422067
     created: 1716389189940
     url: "{{ _.api_url }}/api/v1/validate-signature"
     name: Validate Signature - Servidor
@@ -102,7 +102,7 @@ resources:
     _type: request
   - _id: req_0bae9fd6f4eb4e8e8b59d55020ecd61d
     parentId: wrk_scratchpad
-    modified: 1722976937467
+    modified: 1723202012179
     created: 1716389256122
     url: "{{ _.api_url }}/api/v1/sign"
     name: Sign - Servidor
@@ -131,6 +131,21 @@ resources:
           disabled: false
           type: text
           multiline: false
+        - id: pair_91b88365fcf54f148c2d7d1ae6b4a2d9
+          name: pageIndex
+          value: "3"
+          description: "Ultima página: -1. Restante das páginas funciona normalmente, começando do 0"
+          disabled: false
+        - id: pair_59cd077aae524a589adf539ccfbf9015
+          name: x
+          value: "0"
+          description: ""
+          disabled: false
+        - id: pair_5794512c1e7146b6ab423b56839716a3
+          name: y
+          value: "90"
+          description: ""
+          disabled: false
     parameters: []
     headers:
       - name: Content-Type
