@@ -41,7 +41,7 @@ public class SignerController {
 
         try {
             this.signerService.uploadFile(file, fileHash, certificate, certificateHash);
-            if( pageIndex != null && x != null  &&y != null) {
+            if( pageIndex != null && x != null  && y != null) {
                 var vsc = new VisualSignatureConfig(pageIndex, x, y);
                 this.signerService.setVisualSignatureConfig(vsc);
             }

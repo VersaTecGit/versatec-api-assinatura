@@ -51,8 +51,6 @@ public class SignerService {
         this.fileAssetLocation = Paths.get(fileStorageLocation.getAssetDir()).toAbsolutePath().normalize();
         this.fileUploadLocation = Paths.get(fileStorageLocation.getUploadDir()).toAbsolutePath().normalize();
         this.fileDownloadLocation = Paths.get(fileStorageLocation.getDownloadDir()).toAbsolutePath().normalize();
-        this.visualSignatureConfig = new VisualSignatureConfig(-1, 247, 10);
-
     }
 
     public void setVisualSignatureConfig(VisualSignatureConfig value)
@@ -137,7 +135,9 @@ public class SignerService {
 
         SignatureOptions signatureOptions = this.getSignatureOptions(signedDocument.length);
 
-        this.setVisualSignatureTemplate(signature, signatureOptions, originalDocument, keyStore);
+        if(this.visualSignatureConfig != null) {
+            this.setVisualSignatureTemplate(signature, signatureOptions, originalDocument, keyStore);
+        }
 
         originalDocument.addSignature(signature, signatureOptions);
 
@@ -194,23 +194,14 @@ public class SignerService {
     ) throws IOException {
         PDPageTree pages = originalDocument.getDocumentCatalog().getPages();
 
-        int pageNum;
-        if (
-            this.visualSignatureConfig.pageIndex() == -1 ||
-            this.visualSignatureConfig.pageIndex() >= pages.getCount()
-        ) {
-            pageNum = pages.getCount() - 1;
-        }
-        else {
-            pageNum = this.visualSignatureConfig.pageIndex();
-        }
+        int pageNum = this.getPageIndex(this.visualSignatureConfig.pageIndex(), pages.getCount());
 
         signatureOptions.setPage(pageNum);
         Rectangle2D humanRect = new Rectangle2D.Float(
-                visualSignatureConfig.x(),
-                visualSignatureConfig.y(),
-                100,
-                100
+            visualSignatureConfig.x(),
+            visualSignatureConfig.y(),
+            100,
+            100
         );
 
         Path signatureImageLocation = this.fileAssetLocation.resolve("selo_escuro.jpeg").normalize();
@@ -227,6 +218,15 @@ public class SignerService {
                 signatureContent,
                 keyStore
         ));
+    }
+
+    private int getPageIndex(int pageIndex, int pageCount)
+    {
+        if (pageIndex == -1 || pageIndex >= pageCount) {
+            return pageCount - 1;
+        }
+
+        return pageIndex;
     }
 
     private String addSignatureName(String fileName) {
