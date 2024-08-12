@@ -1,12 +1,17 @@
 package com.example.springboot.services;
 
-import com.example.springboot.FileStorageProperties;
+import com.example.springboot.enums.FileLocationEnum;
+import com.example.springboot.factories.SignatureImageFactory;
 import com.example.springboot.records.VisualSignatureConfig;
+import com.example.springboot.utils.FileUtils;
+import org.apache.pdfbox.cos.COSBase;
+import org.apache.pdfbox.cos.COSDictionary;
+import org.apache.pdfbox.cos.COSName;
+import org.apache.pdfbox.cos.COSString;
 import org.apache.pdfbox.io.IOUtils;
 import org.apache.pdfbox.pdmodel.*;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.common.PDStream;
-import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.graphics.form.PDFormXObject;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationWidget;
@@ -19,138 +24,50 @@ import org.apache.pdfbox.pdmodel.interactive.form.PDAcroForm;
 import org.apache.pdfbox.pdmodel.interactive.form.PDField;
 import org.apache.pdfbox.pdmodel.interactive.form.PDSignatureField;
 import org.apache.pdfbox.util.Matrix;
+import org.bouncycastle.cert.X509CertificateHolder;
+import org.bouncycastle.cms.CMSException;
+import org.bouncycastle.cms.CMSSignedData;
+import org.bouncycastle.cms.SignerInformation;
 import org.demoiselle.signer.core.extension.BasicCertificate;
-import org.demoiselle.signer.core.extension.CertificateExtra;
+import org.demoiselle.signer.core.repository.ConfigurationRepo;
+import org.demoiselle.signer.policy.impl.cades.SignatureInformations;
+import org.demoiselle.signer.policy.impl.cades.SignerException;
 import org.demoiselle.signer.policy.impl.cades.factory.PKCS7Factory;
 import org.demoiselle.signer.policy.impl.cades.pkcs7.PKCS7Signer;
+import org.demoiselle.signer.policy.impl.pades.pkcs7.impl.PAdESChecker;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Rectangle2D;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.*;
 import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.List;
 
 @Service
-public class SignerService {
+public class SignatureService {
 
-    private final Path fileAssetLocation;
-    private final Path fileUploadLocation;
-    private final Path fileDownloadLocation;
-    private VisualSignatureConfig visualSignatureConfig;
+    @Autowired
+    FileUtils fileUtils;
 
-    public SignerService(FileStorageProperties fileStorageLocation) {
-        this.fileAssetLocation = Paths.get(fileStorageLocation.getAssetDir()).toAbsolutePath().normalize();
-        this.fileUploadLocation = Paths.get(fileStorageLocation.getUploadDir()).toAbsolutePath().normalize();
-        this.fileDownloadLocation = Paths.get(fileStorageLocation.getDownloadDir()).toAbsolutePath().normalize();
-    }
+    @Autowired
+    SignatureImageFactory signatureImageFactory;
 
-    public void setVisualSignatureConfig(VisualSignatureConfig value)
-    {
-        this.visualSignatureConfig = value;
-    }
+    public VisualSignatureConfig visualSignatureConfig;
 
-    public void uploadFile(MultipartFile file, String fileHash, MultipartFile certificateFile, String certificateHash) throws IOException {
-        //TODO Add hash in name
-        if (file != null) {
-            String fileName = StringUtils.cleanPath(Objects.requireNonNull(fileHash));
-            Path fileLocation = this.fileUploadLocation.resolve(fileName).normalize();
-            file.transferTo(fileLocation);
-        }
-
-        if (certificateFile != null) {
-            byte[] bytes = certificateFile.getBytes();
-            String certificateFileName = StringUtils.cleanPath(Objects.requireNonNull(certificateHash));
-            Path certificateFileLocation = this.fileUploadLocation.resolve(certificateFileName).normalize();
-            FileOutputStream fos = new FileOutputStream(certificateFileLocation.toString());
-            fos.write(bytes);
-            fos.close();
-        }
-    }
-
-    public void removeAllFiles(String fileHash, String certificateHash) throws IOException {
-        if (fileHash != null) {
-            Path filePath = this.fileUploadLocation.resolve(fileHash).normalize();
-            Files.deleteIfExists(filePath);
-            Path signedFilePath = this.fileDownloadLocation.resolve(this.addSignatureName(fileHash)).normalize();
-            Files.deleteIfExists(signedFilePath);
-        }
-
-        if (certificateHash != null) {
-            Path certificatePath = this.fileUploadLocation.resolve(certificateHash).normalize();
-            Files.deleteIfExists(certificatePath);
-        }
-    }
-
-    public Path getCertificatePath(String certificate) {
-        //TODO Change default location
-        String location = "C:\\Projetos\\springboot\\" + certificate;
-
-        return Paths.get(location);
-    }
-
-    public KeyStore getKeyStore(String certificateFile, String password) throws KeyStoreException, IOException, CertificateException, NoSuchAlgorithmException {
-        KeyStore keyStore = KeyStore.getInstance("PKCS12");
-
-        Path certificateFilePath = this.fileUploadLocation.resolve(certificateFile).normalize();
-        FileInputStream fileInputStream = new FileInputStream(certificateFilePath.toString());
-
-        try {
-            keyStore.load(fileInputStream, password.toCharArray());
-            fileInputStream.close();
-
-            return keyStore;
-        } catch (Exception e) {
-            fileInputStream.close();
-            throw e;
-        }
-    }
-
-    public byte[] signDocument(String fileName, KeyStore ks, String password) throws IOException, UnrecoverableKeyException, KeyStoreException, NoSuchAlgorithmException {
+    public byte[] signDocument(Path filePath, KeyStore ks, String password) throws IOException, UnrecoverableKeyException, KeyStoreException, NoSuchAlgorithmException {
         PKCS7Signer signer = getPKCS7Signer(ks, password);
 
-        Path filePath = this.fileUploadLocation.resolve(fileName).normalize();
         byte[] content = Files.readAllBytes(filePath);
 
         return signer.doAttachedSign(content);
-    }
-
-    public byte[] createPDF(String fileName, byte[] signedDocument, KeyStore keyStore) throws IOException {
-        Path filePath = this.fileUploadLocation.resolve(fileName).normalize();
-        File fileIn = new File(filePath.toString());
-        PDDocument originalDocument = PDDocument.load(fileIn);
-
-        Path downloadPath = this.fileDownloadLocation.resolve(this.addSignatureName(fileName)).normalize();
-        OutputStream output = new FileOutputStream(downloadPath.toString());
-
-        PDSignature signature = this.getPDSignature();
-
-        SignatureOptions signatureOptions = this.getSignatureOptions(signedDocument.length);
-
-        this.setVisualSignatureTemplate(signature, signatureOptions, originalDocument, keyStore);
-
-        originalDocument.addSignature(signature, signatureOptions);
-
-        ExternalSigningSupport externalSigning = originalDocument.saveIncrementalForExternalSigning(output);
-        externalSigning.setSignature(signedDocument);
-
-        originalDocument.saveIncremental(output);
-        originalDocument.close();
-        IOUtils.closeQuietly(signatureOptions);
-
-        return Files.readAllBytes(downloadPath);
-    }
-
-    public Path getFilePath(String fileName) {
-        return this.fileUploadLocation.resolve(fileName).normalize();
     }
 
     private PKCS7Signer getPKCS7Signer(KeyStore ks, String password) throws KeyStoreException, UnrecoverableKeyException, NoSuchAlgorithmException {
@@ -163,6 +80,42 @@ public class SignerService {
 //        signer.setAlgorithm(SignerAlgorithmEnum.SHA256withRSA);
 
         return signer;
+    }
+
+    public Path createPDF(Path filePath, byte[] signedDocument, KeyStore keyStore) throws IOException, KeyStoreException {
+        File fileIn = fileUtils.getFile(filePath);
+        PDDocument originalDocument = PDDocument.load(fileIn);
+
+        Path downloadPath = fileUtils.getFilePath(addSignatureName(fileIn.getName()), FileLocationEnum.DOWNLOAD);
+        OutputStream output = new FileOutputStream(downloadPath.toString());
+
+        PDSignature signature = this.getPDSignature();
+
+        SignatureOptions signatureOptions = this.getSignatureOptions(signedDocument.length);
+
+        this.setVisualSignature(signature, signatureOptions, originalDocument, keyStore);
+
+        originalDocument.addSignature(signature, signatureOptions);
+
+        ExternalSigningSupport externalSigning = originalDocument.saveIncrementalForExternalSigning(output);
+        externalSigning.setSignature(signedDocument);
+
+        originalDocument.saveIncremental(output);
+        originalDocument.close();
+        IOUtils.closeQuietly(signatureOptions);
+
+        return downloadPath;
+    }
+
+    private String addSignatureName(String fileName) {
+        int indicePonto = fileName.lastIndexOf('.');
+        if (indicePonto != -1) {
+            String name = fileName.substring(0, indicePonto);
+            String extension = fileName.substring(indicePonto);
+
+            return name + "_assinado" + extension;
+        }
+        return fileName;
     }
 
     private PDSignature getPDSignature() {
@@ -184,12 +137,12 @@ public class SignerService {
         return signatureOptions;
     }
 
-    private void setVisualSignatureTemplate(
+    private void setVisualSignature(
             PDSignature signature,
             SignatureOptions signatureOptions,
             PDDocument originalDocument,
             KeyStore keyStore
-    ) throws IOException {
+    ) throws IOException, KeyStoreException {
         PDPageTree pages = originalDocument.getDocumentCatalog().getPages();
         PDPage lastPage = pages.get(pages.getCount() - 1);
 
@@ -197,9 +150,15 @@ public class SignerService {
         signatureOptions.setPage(pageNum);
         var humanRect = this.getSignatureHumanRect(lastPage.getMediaBox().getWidth());
 
-        Path signatureImageLocation = this.fileAssetLocation.resolve("selo_escuro.jpeg").normalize();
-        File signatureImage = new File(signatureImageLocation.toString());
-        byte[] signatureContent = Files.readAllBytes(signatureImage.toPath());
+        String alias = keyStore.aliases().nextElement();
+        X509Certificate certificate = (X509Certificate) keyStore.getCertificate(alias);
+        BasicCertificate bc = new BasicCertificate(certificate);
+
+        var signatureContent = this.signatureImageFactory.getDefaultSignature(
+            bc.getName(),
+            certificate.getSubjectX500Principal().getName().split(":")[1].split(",")[0],
+            signature.getSignDate().getTime().toString()
+        );
 
         PDRectangle rect = createSignatureRectangle(originalDocument, humanRect);
 
@@ -216,9 +175,9 @@ public class SignerService {
     private int getPageIndex(int pageCount)
     {
         if (
-            this.visualSignatureConfig == null ||
-            this.visualSignatureConfig.pageIndex() == -1 ||
-            this.visualSignatureConfig.pageIndex() >= pageCount
+                this.visualSignatureConfig == null ||
+                        this.visualSignatureConfig.pageIndex() == -1 ||
+                        this.visualSignatureConfig.pageIndex() >= pageCount
         ) {
             return pageCount - 1;
         }
@@ -230,30 +189,19 @@ public class SignerService {
     {
         if(this.visualSignatureConfig != null) {
             return new Rectangle2D.Float(
-                visualSignatureConfig.x(),
-                visualSignatureConfig.y(),
-                100,
-                100
+                    visualSignatureConfig.x(),
+                    visualSignatureConfig.y(),
+                    100,
+                    100
             );
         }
 
         return new Rectangle2D.Float(
-            (pageWidth - 100) / 2,
-            10,
-            100,
-            100
+                (pageWidth - 100) / 2,
+                10,
+                100,
+                100
         );
-    }
-
-    private String addSignatureName(String fileName) {
-        int indicePonto = fileName.lastIndexOf('.');
-        if (indicePonto != -1) {
-            String name = fileName.substring(0, indicePonto);
-            String extension = fileName.substring(indicePonto);
-
-            return name + "_assinado" + extension;
-        }
-        return fileName;
     }
 
     private PDRectangle createSignatureRectangle(PDDocument doc, Rectangle2D humanRect) {
@@ -372,31 +320,9 @@ public class SignerService {
                     }
                     cs.drawImage(img, 0, 0, imageWidth, imageHeight);
 
-                    String alias = keyStore.aliases().nextElement();
-                    X509Certificate certificate = (X509Certificate) keyStore.getCertificate(alias);
-                    BasicCertificate bc = new BasicCertificate(certificate);
-
-                    var identifier = certificate
-                            .getSubjectX500Principal()
-                            .getName()
-                            .split(":")[1]
-                            .split(",")[0];
-
-                    cs.setFont(PDType1Font.HELVETICA_BOLD, 6);
-                    cs.beginText();
-                    cs.newLineAtOffset(0,36);
-                    cs.showText(signature.getSignDate().getTime().toString());
-                    cs.newLineAtOffset(0,12);
-                    cs.showText(formatCpfOrCnpj(identifier));
-                    cs.newLineAtOffset(0,12);
-                    cs.showText(bc.getName());
-                    cs.endText();
-
                     cs.restoreGraphicsState();
                 }
 
-            } catch (KeyStoreException e) {
-                throw new RuntimeException(e);
             }
 
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -405,28 +331,94 @@ public class SignerService {
         }
     }
 
-    public static String formatCpfOrCnpj(String number) {
-        if (number == null || number.isEmpty()) {
-            return "";
+    public List<SignatureInformations> validateAllSignatures(Path filePath)
+            throws IOException, ParseException, CMSException, CertificateException
+    {
+        List<SignatureInformations> results = new ArrayList<>();
+        List<X509Certificate> chains = new ArrayList<X509Certificate>();
+        PDDocument document;
+
+        document = PDDocument.load(new File(filePath.toString()));
+        List<SignatureInformations> result = null;
+
+        int rangeMax = 0;
+        int fileLen = 0;
+        for (PDSignature sig : document.getSignatureDictionaries()) {
+            COSDictionary sigDict = sig.getCOSObject();
+            COSString contents = (COSString) sigDict.getDictionaryObject(COSName.CONTENTS);
+
+            Date signingTime = this.extractDateOfDictM(sigDict.getDictionaryObject(COSName.M));
+
+            byte[] buf = null;
+
+            try (FileInputStream fis = new FileInputStream(filePath.toString())) {
+                buf = sig.getSignedContent(fis);
+            }
+
+            ConfigurationRepo configlcr = ConfigurationRepo.getInstance();
+            configlcr.setOnline(false);
+
+            PAdESChecker checker = new PAdESChecker();
+            byte[] documentSignature = contents.getBytes();
+
+//            File fileP7S = this.createFileP7S(filePath, documentSignature);
+
+            try {
+                result = checker.checkDetachedSignature(buf, documentSignature);
+                checker.getSignaturesInfo().get(0).setSignDate(signingTime);
+                int[] byteRange = sig.getByteRange();
+                rangeMax = (byteRange[byteRange.length - 2] + byteRange[byteRange.length - 1]);
+                fileLen = (int) new File(filePath.toString()).length();
+
+                if (result == null || result.isEmpty()) {
+                    System.err.println("Erro ao validar");
+                }
+                results.addAll(checker.getSignaturesInfo());
+            } catch (SignerException e) {
+                CMSSignedData signature = new CMSSignedData(documentSignature);
+
+                SignerInformation signerInfo = signature.getSignerInfos().getSigners().iterator().next();
+                Collection<X509CertificateHolder> certificateChain = signature.getCertificates()
+                        .getMatches(signerInfo.getSID());
+
+                CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
+                List<X509Certificate> certificates = new ArrayList<>();
+                for (X509CertificateHolder certHolder : certificateChain) {
+                    X509Certificate cert = (X509Certificate) certFactory
+                            .generateCertificate(new ByteArrayInputStream(certHolder.getEncoded()));
+                    certificates.add(cert);
+                }
+
+                SignatureInformations resul = new SignatureInformations();
+                BasicCertificate icpBrasilcertificate = new BasicCertificate(certificates.get(0));
+                resul.setIcpBrasilcertificate(icpBrasilcertificate);
+                String err = e.getMessage();
+                LinkedList<String> erro = new LinkedList<String>();
+                erro.add(err);
+                resul.setValidatorErrors(erro);
+                resul.setInvalidSignature(true);
+                resul.setSignDate(signingTime);
+                results.add(resul);
+                chains.add(certificates.get(0));
+            }
         }
 
-        // Remove all non-digit characters
-        number = number.replaceAll("\\D", "");
+        document.close();
 
-        if (number.length() == 11) {
-            // Format CPF
-            return number.replaceAll("(\\d{3})(\\d{3})(\\d{3})(\\d{2})", "$1.$2.$3-$4");
-        } else if (number.length() == 14) {
-            // Format CNPJ
-            return number.replaceAll("(\\d{2})(\\d{4})(\\d{4})(\\d{2})(\\d{1})", "$1.$2.$3/$4-$5");
-        } else {
-            // Invalid length
-            return "Invalid length";
+        if (fileLen > rangeMax) {
+            System.err.println("Erro! Foi identificado uma modificação incremental");
         }
+
+        return results;
     }
 
-    public String getRandomHash() {
-        UUID uuid = UUID.randomUUID();
-        return uuid.toString();
+    private Date extractDateOfDictM(COSBase cosNameM) throws ParseException {
+        String dateString = cosNameM.toString();
+        dateString = dateString.replaceAll("^COSString\\{D:|\\}$", "");
+        String gmt = "-" + dateString.split("-")[1].split("'")[0] + "00";
+        dateString = dateString.replaceFirst("-\\d{2}'\\d{2}'", gmt);
+        SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmssZ");
+        Date date = formatter.parse(dateString);
+        return date;
     }
 }
