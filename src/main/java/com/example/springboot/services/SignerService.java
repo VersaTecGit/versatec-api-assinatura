@@ -1,6 +1,7 @@
 package com.example.springboot.services;
 
 import com.example.springboot.FileStorageProperties;
+import com.example.springboot.records.VisualSignatureConfig;
 import org.apache.pdfbox.io.IOUtils;
 import org.apache.pdfbox.pdmodel.*;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
@@ -19,6 +20,7 @@ import org.apache.pdfbox.pdmodel.interactive.form.PDField;
 import org.apache.pdfbox.pdmodel.interactive.form.PDSignatureField;
 import org.apache.pdfbox.util.Matrix;
 import org.demoiselle.signer.core.extension.BasicCertificate;
+import org.demoiselle.signer.core.extension.CertificateExtra;
 import org.demoiselle.signer.policy.impl.cades.factory.PKCS7Factory;
 import org.demoiselle.signer.policy.impl.cades.pkcs7.PKCS7Signer;
 import org.springframework.stereotype.Service;
@@ -43,11 +45,17 @@ public class SignerService {
     private final Path fileAssetLocation;
     private final Path fileUploadLocation;
     private final Path fileDownloadLocation;
+    private VisualSignatureConfig visualSignatureConfig;
 
     public SignerService(FileStorageProperties fileStorageLocation) {
         this.fileAssetLocation = Paths.get(fileStorageLocation.getAssetDir()).toAbsolutePath().normalize();
         this.fileUploadLocation = Paths.get(fileStorageLocation.getUploadDir()).toAbsolutePath().normalize();
         this.fileDownloadLocation = Paths.get(fileStorageLocation.getDownloadDir()).toAbsolutePath().normalize();
+    }
+
+    public void setVisualSignatureConfig(VisualSignatureConfig value)
+    {
+        this.visualSignatureConfig = value;
     }
 
     public void uploadFile(MultipartFile file, String fileHash, MultipartFile certificateFile, String certificateHash) throws IOException {
@@ -127,8 +135,7 @@ public class SignerService {
 
         SignatureOptions signatureOptions = this.getSignatureOptions(signedDocument.length);
 
-        //// TODO: Add visual signature
-        //this.setVisualSignatureTemplate(signatureOptions, originalDocument, keyStore);
+        this.setVisualSignatureTemplate(signature, signatureOptions, originalDocument, keyStore);
 
         originalDocument.addSignature(signature, signatureOptions);
 
@@ -177,19 +184,18 @@ public class SignerService {
         return signatureOptions;
     }
 
-    private void setVisualSignatureTemplate(SignatureOptions signatureOptions, PDDocument originalDocument, KeyStore keyStore) throws IOException {
+    private void setVisualSignatureTemplate(
+            PDSignature signature,
+            SignatureOptions signatureOptions,
+            PDDocument originalDocument,
+            KeyStore keyStore
+    ) throws IOException {
         PDPageTree pages = originalDocument.getDocumentCatalog().getPages();
         PDPage lastPage = pages.get(pages.getCount() - 1);
-        int pageNum = pages.getCount() - 1;
 
-        float pageWidth = lastPage.getMediaBox().getWidth();
-//        float pageHeight = lastPage.getMediaBox().getHeight();
-
-        float centerX = (pageWidth - 100) / 2;
-//        float centerY = pageHeight / 2;
-
+        int pageNum = this.getPageIndex(pages.getCount());
         signatureOptions.setPage(pageNum);
-        Rectangle2D humanRect = new Rectangle2D.Float(centerX, 10, 100, 100);
+        var humanRect = this.getSignatureHumanRect(lastPage.getMediaBox().getWidth());
 
         Path signatureImageLocation = this.fileAssetLocation.resolve("selo_escuro.jpeg").normalize();
         File signatureImage = new File(signatureImageLocation.toString());
@@ -199,11 +205,44 @@ public class SignerService {
 
         signatureOptions.setVisualSignature(createVisualSignatureTemplate(
                 originalDocument,
+                signature,
                 pageNum,
                 rect,
                 signatureContent,
                 keyStore
         ));
+    }
+
+    private int getPageIndex(int pageCount)
+    {
+        if (
+            this.visualSignatureConfig == null ||
+            this.visualSignatureConfig.pageIndex() == -1 ||
+            this.visualSignatureConfig.pageIndex() >= pageCount
+        ) {
+            return pageCount - 1;
+        }
+
+        return this.visualSignatureConfig.pageIndex();
+    }
+
+    private Rectangle2D getSignatureHumanRect(float pageWidth)
+    {
+        if(this.visualSignatureConfig != null) {
+            return new Rectangle2D.Float(
+                visualSignatureConfig.x(),
+                visualSignatureConfig.y(),
+                100,
+                100
+            );
+        }
+
+        return new Rectangle2D.Float(
+            (pageWidth - 100) / 2,
+            10,
+            100,
+            100
+        );
     }
 
     private String addSignatureName(String fileName) {
@@ -261,6 +300,7 @@ public class SignerService {
 
     private InputStream createVisualSignatureTemplate(
             PDDocument srcDoc,
+            PDSignature signature,
             int pageNum,
             PDRectangle rect,
             byte[] signatureContent,
@@ -336,9 +376,19 @@ public class SignerService {
                     X509Certificate certificate = (X509Certificate) keyStore.getCertificate(alias);
                     BasicCertificate bc = new BasicCertificate(certificate);
 
+                    var identifier = certificate
+                            .getSubjectX500Principal()
+                            .getName()
+                            .split(":")[1]
+                            .split(",")[0];
+
                     cs.setFont(PDType1Font.HELVETICA_BOLD, 6);
                     cs.beginText();
-                    cs.newLineAtOffset(0, 0);
+                    cs.newLineAtOffset(0,36);
+                    cs.showText(signature.getSignDate().getTime().toString());
+                    cs.newLineAtOffset(0,12);
+                    cs.showText(formatCpfOrCnpj(identifier));
+                    cs.newLineAtOffset(0,12);
                     cs.showText(bc.getName());
                     cs.endText();
 
@@ -352,6 +402,26 @@ public class SignerService {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             doc.save(baos);
             return new ByteArrayInputStream(baos.toByteArray());
+        }
+    }
+
+    public static String formatCpfOrCnpj(String number) {
+        if (number == null || number.isEmpty()) {
+            return "";
+        }
+
+        // Remove all non-digit characters
+        number = number.replaceAll("\\D", "");
+
+        if (number.length() == 11) {
+            // Format CPF
+            return number.replaceAll("(\\d{3})(\\d{3})(\\d{3})(\\d{2})", "$1.$2.$3-$4");
+        } else if (number.length() == 14) {
+            // Format CNPJ
+            return number.replaceAll("(\\d{2})(\\d{4})(\\d{4})(\\d{2})(\\d{1})", "$1.$2.$3/$4-$5");
+        } else {
+            // Invalid length
+            return "Invalid length";
         }
     }
 

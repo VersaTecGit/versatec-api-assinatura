@@ -1,0 +1,204 @@
+_type: export
+__export_format: 4
+__export_date: 2024-08-09T11:15:01.537Z
+__export_source: insomnia.desktop.app:v9.3.2
+resources:
+  - _id: req_0513f196c9f44e9fa16a651289da8be0
+    parentId: wrk_scratchpad
+    modified: 1722977864717
+    created: 1716389242163
+    url: "{{ _.api_url }}/api/v1/validate-certificate"
+    name: Validate Certificate - Servidor
+    description: ""
+    method: POST
+    body:
+      mimeType: multipart/form-data
+      params:
+        - id: pair_ad8d0ea767d74102b05ad666af243d36
+          name: certificate
+          value: ""
+          description: ""
+          disabled: false
+          type: file
+          multiline: false
+        - id: pair_0bf9595e631b419691c5ddcc52eba89e
+          name: password
+          value: ""
+          description: ""
+          disabled: false
+    parameters: []
+    headers:
+      - name: Content-Type
+        value: multipart/form-data
+        id: pair_0864bc8c8da74d529fe4864f4d844a21
+      - name: User-Agent
+        value: insomnia/8.6.1
+        id: pair_1be0ec681b40420db345a2343396d129
+      - name: Authorization
+        value: Basic dmVyc2F0ZWM6NGEzNGEzNzUtZDNmOS00NWJmLWIwYzAtN2U2NDIxZmEwOTcy
+        id: pair_12a9ad9ca44f430089142a9d21bfd267
+        disabled: false
+    authentication: {}
+    preRequestScript: ""
+    metaSortKey: -1722971156788
+    isPrivate: false
+    pathParameters: []
+    settingStoreCookies: true
+    settingSendCookies: true
+    settingDisableRenderRequestBody: false
+    settingEncodeUrl: true
+    settingRebuildPath: true
+    settingFollowRedirects: global
+    _type: request
+  - _id: wrk_scratchpad
+    parentId: null
+    modified: 1721934763246
+    created: 1721934763246
+    name: Scratch Pad
+    description: ""
+    scope: collection
+    _type: workspace
+  - _id: req_10d81836f3fe4f9b9e5d3c1c49263581
+    parentId: wrk_scratchpad
+    modified: 1723038422067
+    created: 1716389189940
+    url: "{{ _.api_url }}/api/v1/validate-signature"
+    name: Validate Signature - Servidor
+    description: ""
+    method: POST
+    body:
+      mimeType: multipart/form-data
+      params:
+        - id: pair_cf13922d846f4936b81fba39151a2c64
+          name: file
+          value: ""
+          description: ""
+          disabled: false
+          type: file
+          multiline: true
+    parameters: []
+    headers:
+      - name: Content-Type
+        value: multipart/form-data
+        id: pair_61382d7bea344ed69913439dc13825ac
+      - name: User-Agent
+        value: insomnia/8.6.1
+        id: pair_fed5257fcbb94df68d9b90d44d863cf0
+      - id: pair_9637dcbc6ba14f9883f5f0d7c71bc1b2
+        name: Authorization
+        value: Basic dmVyc2F0ZWM6NGEzNGEzNzUtZDNmOS00NWJmLWIwYzAtN2U2NDIxZmEwOTcy
+        description: ""
+    authentication: {}
+    preRequestScript: ""
+    metaSortKey: -1722971156738
+    isPrivate: false
+    pathParameters: []
+    settingStoreCookies: true
+    settingSendCookies: true
+    settingDisableRenderRequestBody: false
+    settingEncodeUrl: true
+    settingRebuildPath: true
+    settingFollowRedirects: global
+    _type: request
+  - _id: req_0bae9fd6f4eb4e8e8b59d55020ecd61d
+    parentId: wrk_scratchpad
+    modified: 1723202012179
+    created: 1716389256122
+    url: "{{ _.api_url }}/api/v1/sign"
+    name: Sign - Servidor
+    description: ""
+    method: POST
+    body:
+      mimeType: multipart/form-data
+      params:
+        - id: pair_b2be1d5ff9b04ebfb0618c05a00faa1c
+          name: file
+          value: ""
+          description: ""
+          disabled: false
+          type: file
+          multiline: true
+        - id: pair_7b4e69a2d8284231a46d98e094ef7d28
+          name: certificate
+          value: ""
+          description: ""
+          disabled: false
+          type: file
+        - id: pair_78db2b6a1f8544f7a309afb6c735a51c
+          name: password
+          value: ""
+          description: ""
+          disabled: false
+          type: text
+          multiline: false
+        - id: pair_91b88365fcf54f148c2d7d1ae6b4a2d9
+          name: pageIndex
+          value: "3"
+          description: "Ultima página: -1. Restante das páginas funciona normalmente, começando do 0"
+          disabled: false
+        - id: pair_59cd077aae524a589adf539ccfbf9015
+          name: x
+          value: "0"
+          description: ""
+          disabled: false
+        - id: pair_5794512c1e7146b6ab423b56839716a3
+          name: y
+          value: "90"
+          description: ""
+          disabled: false
+    parameters: []
+    headers:
+      - name: Content-Type
+        value: multipart/form-data
+        id: pair_21d3c90a10d84790a1f47997f3d0b1e2
+      - name: User-Agent
+        value: insomnia/8.6.1
+        id: pair_ffc9b70fddf045e8a55146c76cea751f
+      - name: Authorization
+        value: Basic dmVyc2F0ZWM6NGEzNGEzNzUtZDNmOS00NWJmLWIwYzAtN2U2NDIxZmEwOTcy
+        id: pair_ba2dd6552b36418d9c6f97be4d419e71
+        disabled: false
+    authentication: {}
+    preRequestScript: ""
+    metaSortKey: -1722971156713
+    isPrivate: false
+    pathParameters: []
+    settingStoreCookies: true
+    settingSendCookies: true
+    settingDisableRenderRequestBody: false
+    settingEncodeUrl: true
+    settingRebuildPath: true
+    settingFollowRedirects: global
+    _type: request
+  - _id: env_99d30891da4bdcebc63947a8fc17f076de878684
+    parentId: wrk_scratchpad
+    modified: 1721934776839
+    created: 1721934776839
+    name: Base Environment
+    data: {}
+    dataPropertyOrder: null
+    color: null
+    isPrivate: false
+    metaSortKey: 1721934776839
+    _type: environment
+  - _id: jar_99d30891da4bdcebc63947a8fc17f076de878684
+    parentId: wrk_scratchpad
+    modified: 1722976540129
+    created: 1721934776956
+    name: Default Jar
+    cookies: []
+    _type: cookie_jar
+  - _id: env_50cf88fa38c54072adeb1acf380b8e78
+    parentId: env_99d30891da4bdcebc63947a8fc17f076de878684
+    modified: 1722974512862
+    created: 1722974391768
+    name: API ASSINATURA
+    data:
+      api_url: http://127.0.0.1:8080
+    dataPropertyOrder:
+      "&":
+        - api_url
+    color: null
+    isPrivate: false
+    metaSortKey: 1722974391768
+    _type: environment

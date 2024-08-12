@@ -1,5 +1,6 @@
 package com.example.springboot.controllers;
 
+import com.example.springboot.records.VisualSignatureConfig;
 import com.example.springboot.services.CheckSignerService;
 import com.example.springboot.services.SignerService;
 import org.demoiselle.signer.core.exception.CertificateValidatorException;
@@ -31,13 +32,20 @@ public class SignerController {
             @RequestParam("file") MultipartFile file,
 //            @RequestParam("certificate") String certificate,
             @RequestParam("certificate") MultipartFile certificate,
-            @RequestParam("password") String password
+            @RequestParam("password") String password,
+            @RequestParam(value = "pageIndex", required = false) Integer pageIndex,
+            @RequestParam(value = "x", required = false) Integer x,
+            @RequestParam(value = "y", required = false) Integer y
     ) throws IOException {
         String fileHash = this.signerService.getRandomHash() + "_" + file.getOriginalFilename();
         String certificateHash = this.signerService.getRandomHash() + "_" + certificate.getOriginalFilename();
 
         try {
             this.signerService.uploadFile(file, fileHash, certificate, certificateHash);
+            if( pageIndex != null && x != null  && y != null) {
+                var vsc = new VisualSignatureConfig(pageIndex, x, y);
+                this.signerService.setVisualSignatureConfig(vsc);
+            }
 
 //            Path certificatePath = this.signerService.getCertificatePath(certificate);
 
