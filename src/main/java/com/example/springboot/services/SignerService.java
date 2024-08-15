@@ -1,7 +1,9 @@
 package com.example.springboot.services;
 
+import com.example.springboot.AppConfig;
 import com.example.springboot.FileStorageProperties;
 import com.example.springboot.records.VisualSignatureConfig;
+import io.nayuki.qrcodegen.QrCode;
 import org.apache.pdfbox.io.IOUtils;
 import org.apache.pdfbox.pdmodel.*;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
@@ -20,15 +22,17 @@ import org.apache.pdfbox.pdmodel.interactive.form.PDField;
 import org.apache.pdfbox.pdmodel.interactive.form.PDSignatureField;
 import org.apache.pdfbox.util.Matrix;
 import org.demoiselle.signer.core.extension.BasicCertificate;
-import org.demoiselle.signer.core.extension.CertificateExtra;
 import org.demoiselle.signer.policy.impl.cades.factory.PKCS7Factory;
 import org.demoiselle.signer.policy.impl.cades.pkcs7.PKCS7Signer;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.imageio.ImageIO;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Rectangle2D;
+import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -36,11 +40,15 @@ import java.nio.file.Paths;
 import java.security.*;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.List;
 
 @Service
 public class SignerService {
+
+    @Autowired
+    AppConfig appConfig;
 
     private final Path fileAssetLocation;
     private final Path fileUploadLocation;
@@ -123,7 +131,7 @@ public class SignerService {
         return signer.doAttachedSign(content);
     }
 
-    public byte[] createPDF(String fileName, byte[] signedDocument, KeyStore keyStore) throws IOException {
+    public byte[] createPDF(String fileName, byte[] signedDocument, KeyStore keyStore, String url) throws IOException {
         Path filePath = this.fileUploadLocation.resolve(fileName).normalize();
         File fileIn = new File(filePath.toString());
         PDDocument originalDocument = PDDocument.load(fileIn);
@@ -135,7 +143,7 @@ public class SignerService {
 
         SignatureOptions signatureOptions = this.getSignatureOptions(signedDocument.length);
 
-        this.setVisualSignatureTemplate(signature, signatureOptions, originalDocument, keyStore);
+        this.setVisualSignatureTemplate(signature, signatureOptions, originalDocument, keyStore, url);
 
         originalDocument.addSignature(signature, signatureOptions);
 
@@ -188,7 +196,8 @@ public class SignerService {
             PDSignature signature,
             SignatureOptions signatureOptions,
             PDDocument originalDocument,
-            KeyStore keyStore
+            KeyStore keyStore,
+            String url
     ) throws IOException {
         PDPageTree pages = originalDocument.getDocumentCatalog().getPages();
         PDPage lastPage = pages.get(pages.getCount() - 1);
@@ -197,7 +206,7 @@ public class SignerService {
         signatureOptions.setPage(pageNum);
         var humanRect = this.getSignatureHumanRect(lastPage.getMediaBox().getWidth());
 
-        Path signatureImageLocation = this.fileAssetLocation.resolve("selo_escuro.jpeg").normalize();
+        Path signatureImageLocation = this.fileAssetLocation.resolve("assinatura_bg.jpg").normalize();
         File signatureImage = new File(signatureImageLocation.toString());
         byte[] signatureContent = Files.readAllBytes(signatureImage.toPath());
 
@@ -209,7 +218,8 @@ public class SignerService {
                 pageNum,
                 rect,
                 signatureContent,
-                keyStore
+                keyStore,
+                url
         ));
     }
 
@@ -232,16 +242,16 @@ public class SignerService {
             return new Rectangle2D.Float(
                 visualSignatureConfig.x(),
                 visualSignatureConfig.y(),
-                100,
-                100
+                190,
+                70
             );
         }
 
         return new Rectangle2D.Float(
-            (pageWidth - 100) / 2,
+            (pageWidth - (190)) / 2,
             10,
-            100,
-            100
+            190,
+            70
         );
     }
 
@@ -304,7 +314,8 @@ public class SignerService {
             int pageNum,
             PDRectangle rect,
             byte[] signatureContent,
-            KeyStore keyStore
+            KeyStore keyStore,
+            String url
     ) throws IOException {
         try (PDDocument doc = new PDDocument()) {
             PDPage page = new PDPage(srcDoc.getPage(pageNum).getMediaBox());
@@ -362,7 +373,6 @@ public class SignerService {
                 if (signatureContent != null) {
 //                    byte[] image = Base64.getDecoder().decode(imageInBase64);
                     cs.saveGraphicsState();
-                    PDImageXObject img = PDImageXObject.createFromByteArray(doc, signatureContent, "signature.png");
 
                     float imageWidth = bbox.getWidth();
                     float imageHeight = bbox.getHeight();
@@ -370,7 +380,29 @@ public class SignerService {
                         imageWidth = bbox.getHeight();
                         imageHeight = bbox.getWidth();
                     }
-                    cs.drawImage(img, 0, 0, imageWidth, imageHeight);
+
+                    PDImageXObject img = PDImageXObject.createFromByteArray(doc, signatureContent, "signature.jpg");
+
+                    cs.drawImage(
+                        img,
+                        0,
+                        0,
+                        imageWidth,
+                        imageHeight
+                    );
+
+                    var qr = generateQrcode(appConfig.getUrl() + "/api/v1/qr-code&url=" + url);
+                    var baos = new ByteArrayOutputStream();
+                    ImageIO.write(qr, "jpeg", baos);
+                    PDImageXObject imgQr = PDImageXObject.createFromByteArray(doc, baos.toByteArray(), "qrCode.jpg");
+                    cs.drawImage(
+                            imgQr,
+                            (float) (imageHeight*0.025),
+                            (float) (imageHeight*0.125),
+                            (float) (imageHeight*0.85),
+                            (float) (imageHeight*0.85)
+                    );
+                    cs.restoreGraphicsState();
 
                     String alias = keyStore.aliases().nextElement();
                     X509Certificate certificate = (X509Certificate) keyStore.getCertificate(alias);
@@ -382,20 +414,48 @@ public class SignerService {
                             .split(":")[1]
                             .split(",")[0];
 
-                    cs.setFont(PDType1Font.HELVETICA_BOLD, 6);
+                    var infoFontSize = (float)(imageHeight*0.06);
+                    var fontSize = (float)(imageHeight*0.085);
+                    var spacing = (float)(imageHeight*0.025);
+
+                    cs.setFont(PDType1Font.HELVETICA_BOLD, infoFontSize);
                     cs.beginText();
-                    cs.newLineAtOffset(0,36);
-                    cs.showText(signature.getSignDate().getTime().toString());
-                    cs.newLineAtOffset(0,12);
-                    cs.showText(formatCpfOrCnpj(identifier));
-                    cs.newLineAtOffset(0,12);
-                    cs.showText(bc.getName());
+                    cs.newLineAtOffset((float) (imageHeight*0.023), (float)(spacing*1.5));
+                    cs.showText("CÓDIGO PARA VERIFICAÇÃO");
                     cs.endText();
 
+                    cs.setFont(PDType1Font.HELVETICA, fontSize);
+                    var marginLeft = (float) ((imageHeight*0.95));
+                    cs.beginText();
+                    cs.newLineAtOffset(marginLeft, (spacing*5) );
+                    var sdf = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss z");
+                    var date = signature.getSignDate().getTime();
+                    cs.showText(sdf.format(date));
+                    cs.newLineAtOffset(0, (spacing*10));
+                    cs.showText(formatCpfOrCnpj(identifier));
+                    cs.newLineAtOffset(0, (float)(spacing*21.5));
+                    cs.showText("Documento assinado digitalmente");
+                    cs.endText();
+
+                    var name = bc.getName();
+                    cs.setFont(PDType1Font.HELVETICA_BOLD, fontSize);
+                    cs.beginText();
+                    if(name.length() >= 31)
+                    {
+                        cs.newLineAtOffset(marginLeft, (spacing*24));
+                        cs.showText(name.substring(31).trim());
+                            cs.newLineAtOffset(0, fontSize);
+                        cs.showText(name.substring(0, 31).trim());
+                    }
+                    else{
+                        cs.newLineAtOffset(marginLeft, (float)(spacing*25.5));
+                        cs.showText(name);
+                    }
+                    cs.endText();
                     cs.restoreGraphicsState();
                 }
 
-            } catch (KeyStoreException e) {
+            } catch (Exception e) {
                 throw new RuntimeException(e);
             }
 
@@ -410,17 +470,13 @@ public class SignerService {
             return "";
         }
 
-        // Remove all non-digit characters
         number = number.replaceAll("\\D", "");
 
         if (number.length() == 11) {
-            // Format CPF
             return number.replaceAll("(\\d{3})(\\d{3})(\\d{3})(\\d{2})", "$1.$2.$3-$4");
         } else if (number.length() == 14) {
-            // Format CNPJ
-            return number.replaceAll("(\\d{2})(\\d{4})(\\d{4})(\\d{2})(\\d{1})", "$1.$2.$3/$4-$5");
+            return number.replaceAll("(\\d{2})(\\d{3})(\\d{3})(\\d{4})(\\d{2})", "$1.$2.$3/$4-$5");
         } else {
-            // Invalid length
             return "Invalid length";
         }
     }
@@ -428,5 +484,34 @@ public class SignerService {
     public String getRandomHash() {
         UUID uuid = UUID.randomUUID();
         return uuid.toString();
+    }
+
+    public static BufferedImage generateQrcode(String barcodeText) throws Exception {
+        QrCode qrCode = QrCode.encodeText(barcodeText, QrCode.Ecc.HIGH);
+        BufferedImage img = toImage(qrCode, 4, 0, 0xFFFFFF, 0x000000);
+        return img;
+    }
+
+    public static BufferedImage toImage(QrCode qr, int scale, int border, int lightColor, int darkColor) {
+        Objects.requireNonNull(qr);
+        if (scale <= 0 || border < 0) {
+            throw new IllegalArgumentException("Value out of range");
+        }
+        if (border > Integer.MAX_VALUE / 2 || qr.size + border * 2L > Integer.MAX_VALUE / scale) {
+            throw new IllegalArgumentException("Scale or border too large");
+        }
+
+        BufferedImage result = new BufferedImage(
+                (qr.size + border * 2) * scale,
+                (qr.size + border * 2) * scale,
+                BufferedImage.TYPE_INT_RGB
+        );
+        for (int y = 0; y < result.getHeight(); y++) {
+            for (int x = 0; x < result.getWidth(); x++) {
+                boolean color = qr.getModule(x / scale - border, y / scale - border);
+                result.setRGB(x, y, color ? darkColor : lightColor);
+            }
+        }
+        return result;
     }
 }
