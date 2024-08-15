@@ -446,8 +446,7 @@ public class SignerService {
                         cs.showText(name.substring(31).trim());
                             cs.newLineAtOffset(0, fontSize);
                         cs.showText(name.substring(0, 31).trim());
-                    }
-                    else{
+                    } else {
                         cs.newLineAtOffset(marginLeft, (float)(spacing*25.5));
                         cs.showText(name);
                     }

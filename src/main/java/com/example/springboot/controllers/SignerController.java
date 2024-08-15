@@ -3,7 +3,6 @@ package com.example.springboot.controllers;
 import com.example.springboot.records.VisualSignatureConfig;
 import com.example.springboot.services.CheckSignerService;
 import com.example.springboot.services.SignerService;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import org.demoiselle.signer.policy.impl.cades.SignatureInformations;
@@ -52,8 +51,7 @@ public class SignerController {
             if( pageIndex != null && x != null && y != null) {
                 var vsc = new VisualSignatureConfig(pageIndex, x, y);
                 this.signerService.setVisualSignatureConfig(vsc);
-            }
-            else{
+            } else {
                 this.signerService.setVisualSignatureConfig(null);
             }
 
@@ -144,8 +142,7 @@ public class SignerController {
         if(Objects.equals(format, "application/validador-iti json"))
         {
             return ResponseEntity.ok("{\"url\": \"" + url + "\"}");
-        }
-        else{
+        } else {
             var redirectUrl = new URI("https://validar.iti.gov.br/");
             HttpHeaders httpHeaders = new HttpHeaders();
             httpHeaders.setLocation(redirectUrl);
