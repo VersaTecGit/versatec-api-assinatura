@@ -3,7 +3,9 @@ package com.example.springboot.controllers;
 import com.example.springboot.records.VisualSignatureConfig;
 import com.example.springboot.services.CheckSignerService;
 import com.example.springboot.services.SignerService;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import org.demoiselle.signer.policy.impl.cades.SignatureInformations;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -34,10 +36,10 @@ public class SignerController {
 
     @PostMapping("/sign")
     public ResponseEntity<?> signer(
-        @RequestParam MultipartFile file,
-        @RequestParam MultipartFile certificate,
-        @RequestParam @NotEmpty String password,
-        @RequestParam @NotEmpty String url,
+        @RequestParam(required = false) @NotNull MultipartFile file,
+        @RequestParam(required = false) @NotNull MultipartFile certificate,
+        @RequestParam(required = false) @NotNull @NotEmpty String password,
+        @RequestParam(required = false) @NotNull @NotEmpty String url,
         @RequestParam(required = false) Integer pageIndex,
         @RequestParam(required = false) Integer x,
         @RequestParam(required = false) Integer y
@@ -47,7 +49,7 @@ public class SignerController {
 
         try {
             this.signerService.uploadFile(file, fileHash, certificate, certificateHash);
-            if( pageIndex != null && x != null  && y != null) {
+            if( pageIndex != null && x != null && y != null) {
                 var vsc = new VisualSignatureConfig(pageIndex, x, y);
                 this.signerService.setVisualSignatureConfig(vsc);
             }
@@ -79,7 +81,7 @@ public class SignerController {
 
     @PostMapping("/validate-signature")
     public ResponseEntity<String> checkSigner(
-        @RequestParam MultipartFile file
+        @RequestParam(required = false) @NotNull MultipartFile file
     ) throws IOException {
         String fileHash = this.signerService.getRandomHash() + "_" + file.getOriginalFilename();
 
@@ -106,8 +108,8 @@ public class SignerController {
 
     @PostMapping("/validate-certificate")
     public ResponseEntity<String> checkCertificate(
-        @RequestParam MultipartFile certificate,
-        @RequestParam @NotEmpty String password
+        @RequestParam(required = false) @NotNull MultipartFile certificate,
+        @RequestParam(required = false) @NotNull @NotEmpty String password
     ) throws IOException {
         String certificateHash = this.signerService.getRandomHash() + "_" + certificate.getOriginalFilename();
 
@@ -137,7 +139,7 @@ public class SignerController {
     public ResponseEntity<String> redirectQrCode(
         @RequestParam(value = "_format", required = false) String format,
         @RequestParam(value = "_secretCode", required = false) String secretCode,
-        @RequestParam @NotEmpty String url
+        @RequestParam(required = false) @NotNull @NotEmpty String url
     ) throws URISyntaxException {
         if(Objects.equals(format, "application/validador-iti json"))
         {
