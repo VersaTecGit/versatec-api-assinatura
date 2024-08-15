@@ -60,12 +60,26 @@ public class SignerService {
         this.fileUploadLocation = Paths.get(fileStorageLocation.getUploadDir()).toAbsolutePath().normalize();
         this.fileDownloadLocation = Paths.get(fileStorageLocation.getDownloadDir()).toAbsolutePath().normalize();
     }
-
+    
+    /**
+     * Define a configuração da assinatura visual.
+     *
+     * @param value a instância da configuração da assinatura visual
+     */
     public void setVisualSignatureConfig(VisualSignatureConfig value)
     {
         this.visualSignatureConfig = value;
     }
 
+    /**
+     * Faz o upload de um arquivo e de um certificado.
+     *
+     * @param file o arquivo a ser assinado
+     * @param fileHash o hash do arquivo
+     * @param certificateFile o arquivo do certificado
+     * @param certificateHash o hash do certificado
+     * @throws IOException se houver um erro ao fazer o upload
+     */
     public void uploadFile(MultipartFile file, String fileHash, MultipartFile certificateFile, String certificateHash) throws IOException {
         //TODO Add hash in name
         if (file != null) {
@@ -84,6 +98,14 @@ public class SignerService {
         }
     }
 
+    /**
+     * Remove todos os arquivos referentes ao hash do arquivo e ao hash do
+     * certificado.
+     *
+     * @param fileHash o hash do arquivo
+     * @param certificateHash o hash do certificado
+     * @throws IOException se houver um erro ao deletar os arquivos
+     */
     public void removeAllFiles(String fileHash, String certificateHash) throws IOException {
         if (fileHash != null) {
             Path filePath = this.fileUploadLocation.resolve(fileHash).normalize();
@@ -98,13 +120,18 @@ public class SignerService {
         }
     }
 
-    public Path getCertificatePath(String certificate) {
-        //TODO Change default location
-        String location = "C:\\Projetos\\springboot\\" + certificate;
 
-        return Paths.get(location);
-    }
-
+    /**
+     * Retorna um objeto KeyStore a partir de um arquivo de certificado e uma senha.
+     *
+     * @param certificateFile o nome do arquivo do certificado
+     * @param password a senha do arquivo de certificado
+     * @return um objeto KeyStore contendo o certificado
+     * @throws KeyStoreException se o tipo de KeyStore não é suportado
+     * @throws IOException se houver um erro ao ler o arquivo de certificado
+     * @throws CertificateException se houver um erro ao carregar o certificado
+     * @throws NoSuchAlgorithmException se o algoritmo de hash não é suportado
+     */
     public KeyStore getKeyStore(String certificateFile, String password) throws KeyStoreException, IOException, CertificateException, NoSuchAlgorithmException {
         KeyStore keyStore = KeyStore.getInstance("PKCS12");
 
@@ -122,6 +149,18 @@ public class SignerService {
         }
     }
 
+    /**
+     * Assina um documento a partir de um arquivo e de um par de chaves.
+     *
+     * @param fileName o nome do arquivo a ser assinado
+     * @param ks o KeyStore contendo as chaves
+     * @param password a senha do KeyStore
+     * @return o documento assinado
+     * @throws IOException se houver um erro ao ler o arquivo
+     * @throws UnrecoverableKeyException se a chave privada não puder ser recuperada
+     * @throws KeyStoreException se houver um erro com o KeyStore
+     * @throws NoSuchAlgorithmException se o algoritmo de hash não é suportado
+     */
     public byte[] signDocument(String fileName, KeyStore ks, String password) throws IOException, UnrecoverableKeyException, KeyStoreException, NoSuchAlgorithmException {
         PKCS7Signer signer = getPKCS7Signer(ks, password);
 
@@ -131,6 +170,17 @@ public class SignerService {
         return signer.doAttachedSign(content);
     }
 
+    /**
+     * Cria um novo PDF a partir de um documento assinado e adiciona a assinatura
+     * visual.
+     *
+     * @param fileName o nome do arquivo original
+     * @param signedDocument o documento assinado
+     * @param keyStore o KeyStore contendo as chaves
+     * @param url a URL da assinatura visual
+     * @return o novo PDF assinado com a assinatura visual
+     * @throws IOException se houver um erro ao ler ou escrever o arquivo
+     */
     public byte[] createPDF(String fileName, byte[] signedDocument, KeyStore keyStore, String url) throws IOException {
         Path filePath = this.fileUploadLocation.resolve(fileName).normalize();
         File fileIn = new File(filePath.toString());
@@ -161,6 +211,16 @@ public class SignerService {
         return this.fileUploadLocation.resolve(fileName).normalize();
     }
 
+    /**
+     * Retorna um objeto PKCS7Signer a partir de um KeyStore e uma senha.
+     *
+     * @param ks o KeyStore contendo as chaves
+     * @param password a senha do KeyStore
+     * @return um objeto PKCS7Signer pronto para assinar um documento
+     * @throws KeyStoreException se o tipo de KeyStore não é suportado
+     * @throws UnrecoverableKeyException se a chave privada não puder ser recuperada
+     * @throws NoSuchAlgorithmException se o algoritmo de hash não é suportado
+     */
     private PKCS7Signer getPKCS7Signer(KeyStore ks, String password) throws KeyStoreException, UnrecoverableKeyException, NoSuchAlgorithmException {
         String alias = ks.aliases().nextElement();
 
@@ -173,6 +233,11 @@ public class SignerService {
         return signer;
     }
 
+    /**
+     * Retorna um objeto PDSignature com as informações básicas de uma assinatura.
+     *
+     * @return um objeto PDSignature pronto para ser adicionado ao documento
+     */
     private PDSignature getPDSignature() {
         PDSignature signature = new PDSignature();
         signature.setSignDate(Calendar.getInstance(TimeZone.getTimeZone("America/Sao_Paulo")));
@@ -192,6 +257,16 @@ public class SignerService {
         return signatureOptions;
     }
 
+    /**
+     * Adiciona a configuração de assinatura visual no {@link PDSignature}.
+     *
+     * @param signature a assinatura a ser adicionada ao documento
+     * @param signatureOptions as opções de assinatura
+     * @param originalDocument o documento original
+     * @param keyStore o KeyStore contendo as chaves
+     * @param url a URL da assinatura visual
+     * @throws IOException se houver um erro ao ler ou escrever o arquivo
+     */
     private void setVisualSignatureTemplate(
             PDSignature signature,
             SignatureOptions signatureOptions,
@@ -199,18 +274,20 @@ public class SignerService {
             KeyStore keyStore,
             String url
     ) throws IOException {
+        // Obtém a última página do documento
         PDPageTree pages = originalDocument.getDocumentCatalog().getPages();
         PDPage lastPage = pages.get(pages.getCount() - 1);
 
+        // Obtém o número da página onde a assinatura será adicionada
         int pageNum = this.getPageIndex(pages.getCount());
         signatureOptions.setPage(pageNum);
-        var humanRect = this.getSignatureHumanRect(lastPage.getMediaBox().getWidth());
+        var humanRectangle = this.getSignatureHumanRectangle(lastPage.getMediaBox().getWidth());
 
         Path signatureImageLocation = this.fileAssetLocation.resolve("assinatura_bg.jpg").normalize();
         File signatureImage = new File(signatureImageLocation.toString());
         byte[] signatureContent = Files.readAllBytes(signatureImage.toPath());
 
-        PDRectangle rect = createSignatureRectangle(originalDocument, humanRect);
+        PDRectangle rect = createSignatureRectangle(originalDocument, humanRectangle);
 
         signatureOptions.setVisualSignature(createVisualSignatureTemplate(
                 originalDocument,
@@ -223,6 +300,17 @@ public class SignerService {
         ));
     }
 
+    /**
+     * Retorna o índice da página onde a assinatura visual será adicionada.
+     *
+     * O índice é baseado em zero, ou seja, a primeira página possui índice 0.
+     * Para automaticamente selecionar a ultima página pode ser passado o
+     * valor -1 na Configuração de assinatura
+     * Se o índice for inválido ou for maior que o número de páginas, a última página será usada.
+     *
+     * @param pageCount o número total de páginas no documento
+     * @return o índice da página onde a assinatura visual será adicionada
+     */
     private int getPageIndex(int pageCount)
     {
         if (
@@ -236,7 +324,17 @@ public class SignerService {
         return this.visualSignatureConfig.pageIndex();
     }
 
-    private Rectangle2D getSignatureHumanRect(float pageWidth)
+    /**
+     * Retorna um retângulo que representa a área onde ficará a assinatura.
+     *
+     * Se a Configuração de assinatura for nula, o retângulo será localizado no
+     * centro da página, a pixels do fim da página
+     * Tamanho fixo de 190 pixels de largura e 70 pixels de altura.
+     *
+     * @param pageWidth a largura da página em pixels
+     * @return um retângulo que representa a área onde ficará a assinatura humana
+     */
+    private Rectangle2D getSignatureHumanRectangle(float pageWidth)
     {
         if(this.visualSignatureConfig != null) {
             return new Rectangle2D.Float(
@@ -255,6 +353,13 @@ public class SignerService {
         );
     }
 
+    /**
+     * Adiciona "_assinado" ao nome do arquivo antes da extensão.
+     * Exemplo: "documento.pdf" vira "documento_assinado.pdf"
+     *
+     * @param fileName o nome do arquivo a ser assinado
+     * @return o nome do arquivo com "_assinado" acrescentado
+     */
     private String addSignatureName(String fileName) {
         int indicePonto = fileName.lastIndexOf('.');
         if (indicePonto != -1) {
@@ -266,11 +371,20 @@ public class SignerService {
         return fileName;
     }
 
-    private PDRectangle createSignatureRectangle(PDDocument doc, Rectangle2D humanRect) {
-        float x = (float) humanRect.getX();
-        float y = (float) humanRect.getY();
-        float width = (float) humanRect.getWidth();
-        float height = (float) humanRect.getHeight();
+    /**
+     * Cria um retângulo que representa a área onde a assinatura será desenhada.
+     * A assinatura será desenhada na página com as mesmas coordenadas (x, y) independentemente da rotação da página.
+     * As coordenadas começam da parte inferior esquerda da página.
+     *
+     * @param doc o documento que contém a página a ser assinada
+     * @param humanRectangle o retângulo que representa a área onde a assinatura humana deve ser desenhada
+     * @return o retângulo que representa a área onde a assinatura será desenhada
+     */
+    private PDRectangle createSignatureRectangle(PDDocument doc, Rectangle2D humanRectangle) {
+        float x = (float) humanRectangle.getX();
+        float y = (float) humanRectangle.getY();
+        float width = (float) humanRectangle.getWidth();
+        float height = (float) humanRectangle.getHeight();
         PDPage page = doc.getPage(0);
         PDRectangle pageRect = page.getCropBox();
         PDRectangle rect = new PDRectangle();
@@ -308,6 +422,19 @@ public class SignerService {
         return rect;
     }
 
+    /**
+     * Cria um template de assinatura visual para os parâmetros dados.
+     *
+     * @param srcDoc          o documento de origem
+     * @param signature       o objeto de assinatura
+     * @param pageNum         o n mero da p gina
+     * @param rect            o ret ngulo
+     * @param signatureContent o conte do da assinatura
+     * @param keyStore        o reposit rio de chaves
+     * @param url             a URL
+     * @return um fluxo de entrada com o template de assinatura visual
+     * @throws IOException se ocorrer um erro de I/O
+     */
     private InputStream createVisualSignatureTemplate(
             PDDocument srcDoc,
             PDSignature signature,
@@ -472,6 +599,12 @@ public class SignerService {
         }
     }
 
+    /**
+     * Formata um número de CPF ou CNPJ.
+     *
+     * @param number Número de CPF ou CNPJ
+     * @return Número de CPF ou CNPJ formatado
+     */
     public static String formatCpfOrCnpj(String number) {
         if (number == null || number.isEmpty()) {
             return "";
@@ -480,32 +613,57 @@ public class SignerService {
         number = number.replaceAll("\\D", "");
 
         if (number.length() == 11) {
+            // CPF
             return number.replaceAll("(\\d{3})(\\d{3})(\\d{3})(\\d{2})", "$1.$2.$3-$4");
         } else if (number.length() == 14) {
+            // CNPJ
             return number.replaceAll("(\\d{2})(\\d{3})(\\d{3})(\\d{4})(\\d{2})", "$1.$2.$3/$4-$5");
         } else {
             return "Invalid length";
         }
     }
 
+    /**
+     * Gera um hash aleat rio.
+     *
+     * @return Um hash aleat rio
+     */
     public String getRandomHash() {
         UUID uuid = UUID.randomUUID();
         return uuid.toString();
     }
 
+    /**
+     * Gera uma imagem de c digo QR com base no texto fornecido.
+     *
+     * @param barcodeText O texto a ser codificado no c digo QR.
+     * @return Uma imagem {@link BufferedImage} representando o c digo QR gerado.
+     * @throws Exception Caso ocorra um erro ao gerar o c digo QR.
+     */
     public static BufferedImage generateQrcode(String barcodeText) throws Exception {
         QrCode qrCode = QrCode.encodeText(barcodeText, QrCode.Ecc.HIGH);
         BufferedImage img = toImage(qrCode, 4, 0, 0xFFFFFF, 0x000000);
         return img;
     }
 
+    /**
+     * Converte um objeto {@link QrCode} para uma imagem {@link BufferedImage}.
+     *
+     * @param qr         O objeto {@link QrCode} a ser convertido.
+     * @param scale      O fator de escala da imagem. O valor deve ser maior que zero.
+     * @param border     A largura da borda da imagem em pixels. O valor deve ser maior ou igual a zero.
+     * @param lightColor A cor da regi o de fundo da imagem em RGB.
+     * @param darkColor  A cor da regi o escura da imagem em RGB.
+     * @return Uma imagem {@link BufferedImage} representando o c digo QR gerado.
+     * @throws IllegalArgumentException Se o valor de {@code scale} ou {@code border} for menor ou igual a zero.
+     */
     public static BufferedImage toImage(QrCode qr, int scale, int border, int lightColor, int darkColor) {
         Objects.requireNonNull(qr);
         if (scale <= 0 || border < 0) {
-            throw new IllegalArgumentException("Value out of range");
+            throw new IllegalArgumentException("Valor fora do intervalo");
         }
         if (border > Integer.MAX_VALUE / 2 || qr.size + border * 2L > Integer.MAX_VALUE / scale) {
-            throw new IllegalArgumentException("Scale or border too large");
+            throw new IllegalArgumentException("Escala ou borda demasiado grande");
         }
 
         BufferedImage result = new BufferedImage(
