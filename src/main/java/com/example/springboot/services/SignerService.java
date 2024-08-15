@@ -425,10 +425,10 @@ public class SignerService {
                     cs.endText();
 
                     cs.setFont(PDType1Font.HELVETICA, fontSize);
-                    var marginLeft = (float) ((imageHeight*0.95));
                     cs.beginText();
+                    var marginLeft = (float) ((imageHeight*0.95));
                     cs.newLineAtOffset(marginLeft, (spacing*5) );
-                    var sdf = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss z");
+                    var sdf = new SimpleDateFormat("dd/MM/yyyy   HH:mm:ss   'UTC'XXX");
                     var date = signature.getSignDate().getTime();
                     cs.showText(sdf.format(date));
                     cs.newLineAtOffset(0, (spacing*10));
@@ -437,19 +437,27 @@ public class SignerService {
                     cs.showText("Documento assinado digitalmente");
                     cs.endText();
 
-                    var name = bc.getName();
                     cs.setFont(PDType1Font.HELVETICA_BOLD, fontSize);
                     cs.beginText();
-                    if(name.length() >= 31)
-                    {
-                        cs.newLineAtOffset(marginLeft, (spacing*24));
-                        cs.showText(name.substring(31).trim());
-                            cs.newLineAtOffset(0, fontSize);
-                        cs.showText(name.substring(0, 31).trim());
-                    } else {
-                        cs.newLineAtOffset(marginLeft, (float)(spacing*25.5));
-                        cs.showText(name);
+                    var words = bc.getName().split(" ");
+                    var lines = new ArrayList<String>();
+                    lines.add("");
+
+                    var indexLine = 0;
+                    for (String word : words) {
+                        if (lines.get(indexLine).length() + word.length() > 30) {
+                            indexLine++;
+                            lines.add("");
+                        }
+                        lines.set(indexLine, lines.get(indexLine) + " " + word);
                     }
+
+                    cs.newLineAtOffset(marginLeft, (float) (spacing*(27-(lines.size()*1.5))));
+                    for (int i = lines.size()-1; i >= 0; i--) {
+                        cs.showText(lines.get(i).trim());
+                        cs.newLineAtOffset(0, fontSize);
+                    }
+
                     cs.endText();
                     cs.restoreGraphicsState();
                 }
