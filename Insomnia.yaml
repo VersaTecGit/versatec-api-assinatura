@@ -1,11 +1,59 @@
 _type: export
 __export_format: 4
-__export_date: 2024-08-09T11:15:01.537Z
+__export_date: 2024-08-15T13:54:59.744Z
 __export_source: insomnia.desktop.app:v9.3.2
 resources:
+  - _id: req_6e7f5bfcb1534fb681f837112c63a1f8
+    parentId: wrk_scratchpad
+    modified: 1723729878605
+    created: 1723726402029
+    url: http://localhost:8080/api/v1/qr-code
+    name: QR Code
+    description: ""
+    method: GET
+    body: {}
+    parameters:
+      - id: pair_9a91fc9e30154fb286b71d4a8ebdabf8
+        name: url
+        value: ""
+        description: ""
+        disabled: false
+      - id: pair_578923ec854b44b49c15499322156674
+        name: _format
+        value: application/validador-iti json
+        description: ""
+        disabled: false
+      - id: pair_514192744b5e49eb98a1095b1eab58da
+        name: _secretCode
+        value: ""
+        description: ""
+        disabled: true
+    headers:
+      - name: User-Agent
+        value: insomnia/9.3.2
+        id: pair_465d1f4843444bd1b39d0a25613be316
+    authentication: {}
+    metaSortKey: -1723726402029
+    isPrivate: false
+    pathParameters: []
+    settingStoreCookies: true
+    settingSendCookies: true
+    settingDisableRenderRequestBody: false
+    settingEncodeUrl: true
+    settingRebuildPath: true
+    settingFollowRedirects: global
+    _type: request
+  - _id: wrk_scratchpad
+    parentId: null
+    modified: 1721934763246
+    created: 1721934763246
+    name: Scratch Pad
+    description: ""
+    scope: collection
+    _type: workspace
   - _id: req_0513f196c9f44e9fa16a651289da8be0
     parentId: wrk_scratchpad
-    modified: 1722977864717
+    modified: 1723729838776
     created: 1716389242163
     url: "{{ _.api_url }}/api/v1/validate-certificate"
     name: Validate Certificate - Servidor
@@ -50,14 +98,6 @@ resources:
     settingRebuildPath: true
     settingFollowRedirects: global
     _type: request
-  - _id: wrk_scratchpad
-    parentId: null
-    modified: 1721934763246
-    created: 1721934763246
-    name: Scratch Pad
-    description: ""
-    scope: collection
-    _type: workspace
   - _id: req_10d81836f3fe4f9b9e5d3c1c49263581
     parentId: wrk_scratchpad
     modified: 1723038422067
@@ -102,7 +142,7 @@ resources:
     _type: request
   - _id: req_0bae9fd6f4eb4e8e8b59d55020ecd61d
     parentId: wrk_scratchpad
-    modified: 1723202012179
+    modified: 1723729958929
     created: 1716389256122
     url: "{{ _.api_url }}/api/v1/sign"
     name: Sign - Servidor
@@ -111,13 +151,12 @@ resources:
     body:
       mimeType: multipart/form-data
       params:
-        - id: pair_b2be1d5ff9b04ebfb0618c05a00faa1c
+        - id: pair_2003b72638844a4483ff2f7db04e179e
           name: file
           value: ""
           description: ""
           disabled: false
           type: file
-          multiline: true
         - id: pair_7b4e69a2d8284231a46d98e094ef7d28
           name: certificate
           value: ""
@@ -131,19 +170,24 @@ resources:
           disabled: false
           type: text
           multiline: false
-        - id: pair_91b88365fcf54f148c2d7d1ae6b4a2d9
-          name: pageIndex
-          value: "3"
-          description: "Ultima página: -1. Restante das páginas funciona normalmente, começando do 0"
-          disabled: false
-        - id: pair_59cd077aae524a589adf539ccfbf9015
+        - id: pair_f8978eafe6164a6d9bd1299be238b001
           name: x
-          value: "0"
+          value: "250"
+          description: ""
+          disabled: true
+        - id: pair_d22bc1e9a1cf4e8b85ae3a7f35ba4409
+          name: y
+          value: "10"
+          description: ""
+          disabled: true
+        - id: pair_c49ef5de57d94adea08f1d8c4ac0d199
+          name: url
+          value: a
           description: ""
           disabled: false
-        - id: pair_5794512c1e7146b6ab423b56839716a3
-          name: y
-          value: "90"
+        - id: pair_7bd5ef840f42468ebec5b154140dd7f9
+          name: pageIndex
+          value: ""
           description: ""
           disabled: false
     parameters: []
@@ -183,16 +227,16 @@ resources:
     _type: environment
   - _id: jar_99d30891da4bdcebc63947a8fc17f076de878684
     parentId: wrk_scratchpad
-    modified: 1722976540129
+    modified: 1723726657600
     created: 1721934776956
     name: Default Jar
     cookies: []
     _type: cookie_jar
   - _id: env_50cf88fa38c54072adeb1acf380b8e78
     parentId: env_99d30891da4bdcebc63947a8fc17f076de878684
-    modified: 1722974512862
+    modified: 1723235954524
     created: 1722974391768
-    name: API ASSINATURA
+    name: localhost:8080
     data:
       api_url: http://127.0.0.1:8080
     dataPropertyOrder:
@@ -201,4 +245,18 @@ resources:
     color: null
     isPrivate: false
     metaSortKey: 1722974391768
+    _type: environment
+  - _id: env_1cf063df35dd460bbecc7866017f274b
+    parentId: env_99d30891da4bdcebc63947a8fc17f076de878684
+    modified: 1723236245360
+    created: 1723235943288
+    name: "PROD "
+    data:
+      api_url: http://159.203.161.14:8080
+    dataPropertyOrder:
+      "&":
+        - api_url
+    color: null
+    isPrivate: false
+    metaSortKey: 1723235943288
     _type: environment

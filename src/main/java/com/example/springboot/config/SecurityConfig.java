@@ -14,6 +14,7 @@ public class SecurityConfig {
         http.csrf(AbstractHttpConfigurer::disable);
 
         http.authorizeHttpRequests(requests -> {
+            requests.requestMatchers("/api/v1/qr-code").permitAll();
             requests.anyRequest().authenticated();
         });
 

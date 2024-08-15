@@ -73,6 +73,11 @@
             <artifactId>pdfbox</artifactId>
             <version>2.0.31</version>
         </dependency>
+        <dependency>
+            <groupId>io.nayuki</groupId>
+            <artifactId>qrcodegen</artifactId>
+            <version>1.8.0</version>
+        </dependency>
     </dependencies>
 
     <build>
