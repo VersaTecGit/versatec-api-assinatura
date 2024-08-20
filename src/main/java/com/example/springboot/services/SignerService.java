@@ -60,7 +60,7 @@ public class SignerService {
         this.fileUploadLocation = Paths.get(fileStorageLocation.getUploadDir()).toAbsolutePath().normalize();
         this.fileDownloadLocation = Paths.get(fileStorageLocation.getDownloadDir()).toAbsolutePath().normalize();
     }
-    
+
     /**
      * Define a configuração da assinatura visual.
      *
@@ -281,9 +281,17 @@ public class SignerService {
         // Obtém o número da página onde a assinatura será adicionada
         int pageNum = this.getPageIndex(pages.getCount());
         signatureOptions.setPage(pageNum);
-        var humanRectangle = this.getSignatureHumanRectangle(lastPage.getMediaBox().getWidth());
+        Rectangle2D humanRectangle;
+        Path signatureImageLocation;
+        if(url != null && !url.trim().isEmpty()){
+            signatureImageLocation = this.fileAssetLocation.resolve("assinatura_bg.jpg").normalize();
+            humanRectangle = this.getSignatureHumanRectangleWithQr(lastPage.getMediaBox().getWidth());
+        }
+        else{
+            signatureImageLocation = this.fileAssetLocation.resolve("assinatura_bg_noQr.jpg").normalize();
+            humanRectangle = this.getSignatureHumanRectangleWithoutQr(lastPage.getMediaBox().getWidth());
+        }
 
-        Path signatureImageLocation = this.fileAssetLocation.resolve("assinatura_bg.jpg").normalize();
         File signatureImage = new File(signatureImageLocation.toString());
         byte[] signatureContent = Files.readAllBytes(signatureImage.toPath());
 
@@ -325,6 +333,35 @@ public class SignerService {
     }
 
     /**
+     * Retorna um retângulo que representa a área onde ficará a assinatura, incluindo o QR.
+     *
+     * Se a Configuração de assinatura for nula, o retângulo será localizado no
+     * centro da página, a pixels do fim da página
+     * Tamanho fixo de 190 pixels de largura e 70 pixels de altura.
+     *
+     * @param pageWidth a largura da página em pixels
+     * @return um retângulo que representa a área onde ficará a assinatura humana
+     */
+    private Rectangle2D getSignatureHumanRectangleWithQr(float pageWidth)
+    {
+        if(this.visualSignatureConfig != null) {
+            return new Rectangle2D.Float(
+                    visualSignatureConfig.x(),
+                    visualSignatureConfig.y(),
+                    190,
+                    70
+            );
+        }
+
+        return new Rectangle2D.Float(
+                (pageWidth - (190)) / 2,
+                10,
+                190,
+                70
+        );
+    }
+
+    /**
      * Retorna um retângulo que representa a área onde ficará a assinatura.
      *
      * Se a Configuração de assinatura for nula, o retângulo será localizado no
@@ -334,22 +371,22 @@ public class SignerService {
      * @param pageWidth a largura da página em pixels
      * @return um retângulo que representa a área onde ficará a assinatura humana
      */
-    private Rectangle2D getSignatureHumanRectangle(float pageWidth)
+    private Rectangle2D getSignatureHumanRectangleWithoutQr(float pageWidth)
     {
         if(this.visualSignatureConfig != null) {
             return new Rectangle2D.Float(
-                visualSignatureConfig.x(),
-                visualSignatureConfig.y(),
-                190,
-                70
+                    visualSignatureConfig.x(),
+                    visualSignatureConfig.y(),
+                    130,
+                    70
             );
         }
 
         return new Rectangle2D.Float(
-            (pageWidth - (190)) / 2,
-            10,
-            190,
-            70
+                (pageWidth - (130)) / 2,
+                10,
+                130,
+                70
         );
     }
 
@@ -518,18 +555,33 @@ public class SignerService {
                         imageHeight
                     );
 
-                    var qr = generateQrcode(appConfig.getUrl() + "/api/v1/qr-code&url=" + url);
-                    var baos = new ByteArrayOutputStream();
-                    ImageIO.write(qr, "jpeg", baos);
-                    PDImageXObject imgQr = PDImageXObject.createFromByteArray(doc, baos.toByteArray(), "qrCode.jpg");
-                    cs.drawImage(
-                            imgQr,
-                            (float) (imageHeight*0.025),
-                            (float) (imageHeight*0.125),
-                            (float) (imageHeight*0.85),
-                            (float) (imageHeight*0.85)
-                    );
-                    cs.restoreGraphicsState();
+                    var infoFontSize = (float)(imageHeight*0.06);
+                    var fontSize = (float)(imageHeight*0.085);
+                    var spacing = (float)(imageHeight*0.025);
+                    var marginLeft = (float) ((imageHeight*0.05));
+
+                    if(url != null && !url.trim().isEmpty())
+                    {
+                        var qr = generateQrcode(appConfig.getUrl() + "/api/v1/qr-code&url=" + url);
+                        var baos = new ByteArrayOutputStream();
+                        ImageIO.write(qr, "jpeg", baos);
+                        PDImageXObject imgQr = PDImageXObject.createFromByteArray(doc, baos.toByteArray(), "qrCode.jpg");
+                        cs.drawImage(
+                                imgQr,
+                                (float) (imageHeight*0.025),
+                                (float) (imageHeight*0.125),
+                                (float) (imageHeight*0.85),
+                                (float) (imageHeight*0.85)
+                        );
+                        cs.restoreGraphicsState();
+
+                        cs.setFont(PDType1Font.HELVETICA_BOLD, infoFontSize);
+                        cs.beginText();
+                        cs.newLineAtOffset((float) (imageHeight*0.023), (float)(spacing*1.5));
+                        cs.showText("CÓDIGO PARA VERIFICAÇÃO");
+                        cs.endText();
+                        marginLeft = (float) ((imageHeight*0.95));
+                    }
 
                     String alias = keyStore.aliases().nextElement();
                     X509Certificate certificate = (X509Certificate) keyStore.getCertificate(alias);
@@ -541,20 +593,13 @@ public class SignerService {
                             .split(":")[1]
                             .split(",")[0];
 
-                    var infoFontSize = (float)(imageHeight*0.06);
-                    var fontSize = (float)(imageHeight*0.085);
-                    var spacing = (float)(imageHeight*0.025);
-
-                    cs.setFont(PDType1Font.HELVETICA_BOLD, infoFontSize);
-                    cs.beginText();
-                    cs.newLineAtOffset((float) (imageHeight*0.023), (float)(spacing*1.5));
-                    cs.showText("CÓDIGO PARA VERIFICAÇÃO");
-                    cs.endText();
-
                     cs.setFont(PDType1Font.HELVETICA, fontSize);
                     cs.beginText();
-                    var marginLeft = (float) ((imageHeight*0.95));
-                    cs.newLineAtOffset(marginLeft, (spacing*5) );
+                    if(url != null && !url.trim().isEmpty()) {
+                        cs.newLineAtOffset(marginLeft, (spacing * 5));
+                    } else {
+                        cs.newLineAtOffset(marginLeft, (spacing * 3));
+                    }
                     var sdf = new SimpleDateFormat("dd/MM/yyyy   HH:mm:ss   'UTC'XXX");
                     var date = signature.getSignDate().getTime();
                     cs.showText(sdf.format(date));

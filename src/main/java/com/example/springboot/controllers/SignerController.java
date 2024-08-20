@@ -38,7 +38,7 @@ public class SignerController {
         @RequestParam(required = false) @NotNull MultipartFile file,
         @RequestParam(required = false) @NotNull MultipartFile certificate,
         @RequestParam(required = false) @NotNull @NotEmpty String password,
-        @RequestParam(required = false) @NotNull @NotEmpty String url,
+        @RequestParam(required = false) String url,
         @RequestParam(required = false) Integer pageIndex,
         @RequestParam(required = false) Integer x,
         @RequestParam(required = false) Integer y
