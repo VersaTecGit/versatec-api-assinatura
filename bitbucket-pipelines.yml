@@ -14,7 +14,7 @@ pipelines:
           artifacts:
             - target/**
           script:
-            - mvn -B verify -D version=$TAG
+            - mvn -B verify -D revision=$TAG
         
       - step: &create-tag
           name: Create tag
