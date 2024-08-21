@@ -1,0 +1,49 @@
+image: maven:3.6.3-openjdk-17
+
+pipelines:
+  custom:
+    custom-deploy:
+      - variables:
+          - name: DESCRICAO
+          - name: TAG
+
+      - step: &build-test
+          name: Build and Test
+          caches:
+            - maven
+          artifacts:
+            - target/**
+          script:
+            - mvn -B verify -D revision=$TAG
+        
+      - step: &create-tag
+          name: Create tag
+          image:
+            name: atlassian/default-image:2
+          script:
+            - git tag -a $TAG -m "$DESCRICAO" -f
+            - git push origin $TAG -f
+        
+      - step: &deploy-scp
+          name: Deploy - transfer file
+          trigger: manual
+          script:
+            - pipe: atlassian/scp-deploy:0.3.3
+              variables:
+                USER: $SSH_USER
+                SERVER: $SERVER
+                REMOTE_PATH: '/tmp/'
+                LOCAL_PATH: 'target/ApiDigitalSignature-$TAG.jar'
+
+      - step: &deploy-ssh
+          name: Deploy - change jar file
+          script:
+            - pipe: atlassian/ssh-run:0.8.1
+              variables:
+                SSH_USER: $SSH_USER
+                SERVER: $SERVER
+                COMMAND: |
+                  sudo systemctl stop digital-signature.service
+                  sudo rm /home/versa/target/ApiDigitalSignature.jar
+                  sudo mv /tmp/ApiDigitalSignature-$TAG.jar /home/versa/ApiDigitalSignature.jar
+                  sudo systemctl start digital-signature.service
