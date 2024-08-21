@@ -22,6 +22,17 @@ public class CertificateService {
     @Autowired
     FileUtils fileUtils;
 
+    /**
+     * Retorna um objeto KeyStore a partir de um arquivo de certificado e uma senha.
+     *
+     * @param certificateFile o nome do arquivo do certificado
+     * @param password        a senha do arquivo de certificado
+     * @return um objeto KeyStore contendo o certificado
+     * @throws KeyStoreException        se o tipo de KeyStore não é suportado
+     * @throws IOException              se houver um erro ao ler o arquivo de certificado
+     * @throws CertificateException     se houver um erro ao carregar o certificado
+     * @throws NoSuchAlgorithmException se o algoritmo de hash não é suportado
+     */
     public KeyStore getKeyStore(Path certificatePath, String password)
             throws KeyStoreException,
             CertificateException,
