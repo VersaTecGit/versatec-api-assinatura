@@ -284,10 +284,10 @@ public class SignerService {
         Path signatureImageLocation;
         if (url != null && !url.trim().isEmpty()) {
             signatureImageLocation = this.fileAssetLocation.resolve("assinatura_bg.jpg").normalize();
-            humanRectangle = this.getSignatureHumanRectangleWithQr(lastPage.getMediaBox().getWidth());
+            humanRectangle = this.getSignatureHumanRectangle(lastPage.getMediaBox(), 190, 70);
         } else {
             signatureImageLocation = this.fileAssetLocation.resolve("assinatura_bg_noQr.jpg").normalize();
-            humanRectangle = this.getSignatureHumanRectangleWithoutQr(lastPage.getMediaBox().getWidth());
+            humanRectangle = this.getSignatureHumanRectangle(lastPage.getMediaBox(), 130, 70);
         }
 
         File signatureImage = new File(signatureImageLocation.toString());
@@ -330,58 +330,29 @@ public class SignerService {
     }
 
     /**
-     * Retorna um retângulo que representa a área onde ficará a assinatura, incluindo o QR.
+     * Retorna um retângulo que representa a área onde ficará a assinatura
      * <p>
      * Se a Configuração de assinatura for nula, o retângulo será localizado no
-     * centro da página, a pixels do fim da página
-     * Tamanho fixo de 190 pixels de largura e 70 pixels de altura.
+     * centro da página, a 2cm do fim da página
      *
-     * @param pageWidth a largura da página em pixels
+     * @param pageBox as dimensões da página
      * @return um retângulo que representa a área onde ficará a assinatura humana
      */
-    private Rectangle2D getSignatureHumanRectangleWithQr(float pageWidth) {
+    private Rectangle2D getSignatureHumanRectangle(PDRectangle pageBox, int width, int height) {
         if (this.visualSignatureConfig != null) {
             return new Rectangle2D.Float(
                     visualSignatureConfig.x(),
                     visualSignatureConfig.y(),
-                    190,
-                    70
+                    width,
+                    height
             );
         }
 
         return new Rectangle2D.Float(
-                (pageWidth - (190)) / 2,
-                10,
-                190,
-                70
-        );
-    }
-
-    /**
-     * Retorna um retângulo que representa a área onde ficará a assinatura.
-     * <p>
-     * Se a Configuração de assinatura for nula, o retângulo será localizado no
-     * centro da página, a pixels do fim da página
-     * Tamanho fixo de 190 pixels de largura e 70 pixels de altura.
-     *
-     * @param pageWidth a largura da página em pixels
-     * @return um retângulo que representa a área onde ficará a assinatura humana
-     */
-    private Rectangle2D getSignatureHumanRectangleWithoutQr(float pageWidth) {
-        if (this.visualSignatureConfig != null) {
-            return new Rectangle2D.Float(
-                    visualSignatureConfig.x(),
-                    visualSignatureConfig.y(),
-                    130,
-                    70
-            );
-        }
-
-        return new Rectangle2D.Float(
-                (pageWidth - (130)) / 2,
-                10,
-                130,
-                70
+                (pageBox.getWidth() - (width)) / 2,
+                (float) (((16)*72)/25.4), //Converte 16mm pra points
+                width,
+                height
         );
     }
 
