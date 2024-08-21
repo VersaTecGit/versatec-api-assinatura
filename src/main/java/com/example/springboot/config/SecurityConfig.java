@@ -14,6 +14,9 @@ public class SecurityConfig {
         http.csrf(AbstractHttpConfigurer::disable);
 
         http.authorizeHttpRequests(requests -> {
+            //Libera somente a rota de qr-code pra todos usarem
+            requests.requestMatchers("/api/v1/qr-code").permitAll();
+            //Bloqueia as demais rotas
             requests.anyRequest().authenticated();
         });
 
