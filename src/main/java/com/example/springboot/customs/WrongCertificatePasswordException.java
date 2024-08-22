@@ -1,4 +1,4 @@
-package com.example.springboot.exceptions;
+package com.example.springboot.customs;
 
 public class WrongCertificatePasswordException extends Exception {
 

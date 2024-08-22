@@ -1,32 +1,22 @@
 package com.example.springboot.services;
 
-import com.example.springboot.AppConfig;
-import com.example.springboot.enums.FileLocationEnum;
-import com.example.springboot.factories.SignatureImageFactory;
-import com.example.springboot.records.VisualSignatureConfig;
+import com.example.springboot.customs.CustomCertificate;
+import com.example.springboot.customs.FileLocationEnum;
+import com.example.springboot.customs.WrongCertificatePasswordException;
+import com.example.springboot.utils.SignatureImageGenerator;
+import com.example.springboot.customs.VisualSignatureConfig;
 import com.example.springboot.utils.FileUtils;
+import com.example.springboot.utils.PDFUtils;
 import org.apache.pdfbox.cos.COSBase;
 import org.apache.pdfbox.cos.COSDictionary;
 import org.apache.pdfbox.cos.COSName;
 import org.apache.pdfbox.cos.COSString;
-import io.nayuki.qrcodegen.QrCode;
 import org.apache.pdfbox.io.IOUtils;
 import org.apache.pdfbox.pdmodel.*;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
-import org.apache.pdfbox.pdmodel.common.PDStream;
-import org.apache.pdfbox.pdmodel.font.PDType1Font;
-import org.apache.pdfbox.pdmodel.graphics.form.PDFormXObject;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
-import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationWidget;
-import org.apache.pdfbox.pdmodel.interactive.annotation.PDAppearanceDictionary;
-import org.apache.pdfbox.pdmodel.interactive.annotation.PDAppearanceStream;
-import org.apache.pdfbox.pdmodel.interactive.digitalsignature.ExternalSigningSupport;
 import org.apache.pdfbox.pdmodel.interactive.digitalsignature.PDSignature;
 import org.apache.pdfbox.pdmodel.interactive.digitalsignature.SignatureOptions;
-import org.apache.pdfbox.pdmodel.interactive.form.PDAcroForm;
-import org.apache.pdfbox.pdmodel.interactive.form.PDField;
-import org.apache.pdfbox.pdmodel.interactive.form.PDSignatureField;
-import org.apache.pdfbox.util.Matrix;
 import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cms.CMSException;
 import org.bouncycastle.cms.CMSSignedData;
@@ -37,14 +27,10 @@ import org.demoiselle.signer.policy.impl.cades.SignatureInformations;
 import org.demoiselle.signer.policy.impl.cades.SignerException;
 import org.demoiselle.signer.policy.impl.cades.factory.PKCS7Factory;
 import org.demoiselle.signer.policy.impl.cades.pkcs7.PKCS7Signer;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.demoiselle.signer.policy.impl.pades.pkcs7.impl.PAdESChecker;
 import org.springframework.stereotype.Service;
 
-import javax.imageio.ImageIO;
-import java.awt.geom.AffineTransform;
 import java.awt.geom.Rectangle2D;
-import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -56,61 +42,54 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
-import static com.example.springboot.utils.FormatterUtils.formatCpfOrCnpj;
-import static com.example.springboot.utils.QrCodeUtils.generateQrcode;
-
 @Service
 public class SignatureService {
 
-    @Autowired
-    FileUtils fileUtils;
+    public final FileUtils fileUtils;
+    public final SignatureImageGenerator signatureImageGenerator;
 
-    @Autowired
-    AppConfig appConfig;
-
-    @Autowired
-    SignatureImageFactory signatureImageFactory;
-
-    public VisualSignatureConfig visualSignatureConfig;
+    public SignatureService(FileUtils fileUtils, SignatureImageGenerator signatureImageGenerator) {
+        this.fileUtils = fileUtils;
+        this.signatureImageGenerator = signatureImageGenerator;
+    }
 
     /**
      * Assina um documento a partir de um arquivo e de um par de chaves.
      *
      * @param filePath o nome do arquivo a ser assinado
-     * @param ks       o KeyStore contendo as chaves
-     * @param password a senha do KeyStore
+     * @param customCertificate                   especialização do certificado, contendo informações necessárias
+     *
      * @return o documento assinado
      * @throws IOException               se houver um erro ao ler o arquivo
      * @throws UnrecoverableKeyException se a chave privada não puder ser recuperada
      * @throws KeyStoreException         se houver um erro com o KeyStore
      * @throws NoSuchAlgorithmException  se o algoritmo de hash não é suportado
      */
-    public byte[] signDocument(Path filePath, KeyStore ks, String password) throws IOException, UnrecoverableKeyException, KeyStoreException, NoSuchAlgorithmException {
-        PKCS7Signer signer = getPKCS7Signer(ks, password);
-
+    public byte[] signDocument(Path filePath, CustomCertificate customCertificate)
+            throws IOException,
+            UnrecoverableKeyException,
+            KeyStoreException,
+            NoSuchAlgorithmException,
+            WrongCertificatePasswordException
+    {
+        var signer = getPKCS7Signer(customCertificate);
         byte[] content = Files.readAllBytes(filePath);
-
         return signer.doAttachedSign(content);
     }
 
     /**
-     * Retorna um objeto PKCS7Signer a partir de um KeyStore e uma senha.
+     * Retorna um objeto PKCS7Signer a partir de um certificado.
      *
-     * @param ks       o KeyStore contendo as chaves
-     * @param password a senha do KeyStore
+     * @param customCertificate                   especialização do certificado, contendo informações necessárias
      * @return um objeto PKCS7Signer pronto para assinar um documento
      * @throws KeyStoreException         se o tipo de KeyStore não é suportado
      * @throws UnrecoverableKeyException se a chave privada não puder ser recuperada
      * @throws NoSuchAlgorithmException  se o algoritmo de hash não é suportado
      */
-    private PKCS7Signer getPKCS7Signer(KeyStore ks, String password) throws KeyStoreException, UnrecoverableKeyException, NoSuchAlgorithmException {
-        String alias = ks.aliases().nextElement();
-
-        PKCS7Signer signer = PKCS7Factory.getInstance().factoryDefault();
-        signer.setCertificates(ks.getCertificateChain(alias));
-        signer.setPrivateKey((PrivateKey) ks.getKey(alias, password.toCharArray()));
-//        signer.setSignaturePolicy(PolicyFactory.Policies.AD_RB_CADES_2_3);
-//        signer.setAlgorithm(SignerAlgorithmEnum.SHA256withRSA);
+    private PKCS7Signer getPKCS7Signer(CustomCertificate customCertificate) throws KeyStoreException, UnrecoverableKeyException, NoSuchAlgorithmException {
+        var signer = PKCS7Factory.getInstance().factoryDefault();
+        signer.setCertificates(customCertificate.certificateChain);
+        signer.setPrivateKey((PrivateKey) customCertificate.keyStore.getKey(customCertificate.alias, customCertificate.password.toCharArray()));
 
         return signer;
     }
@@ -121,27 +100,33 @@ public class SignatureService {
      *
      * @param filePath       o nome do arquivo original
      * @param signedDocument o documento assinado
-     * @param keyStore       o KeyStore contendo as chaves
+     * @param customCertificate    especialização do certificado, contendo informações necessárias
      * @param url            a URL da assinatura visual
      * @return o novo PDF assinado com a assinatura visual
      * @throws IOException se houver um erro ao ler ou escrever o arquivo
      */
-    public Path createPDF(Path filePath, byte[] signedDocument, KeyStore keyStore, String url) throws IOException, KeyStoreException {
-        File fileIn = fileUtils.getFile(filePath);
-        PDDocument originalDocument = PDDocument.load(fileIn);
+    public Path createPDF(
+            Path filePath,
+            byte[] signedDocument,
+            CustomCertificate customCertificate,
+            VisualSignatureConfig visualSignatureConfig,
+            String url)
+    throws Exception {
+        var fileIn = fileUtils.getFile(filePath);
+        var originalDocument = PDDocument.load(fileIn);
 
-        Path downloadPath = fileUtils.getFilePath(addSignatureName(fileIn.getName()), FileLocationEnum.DOWNLOAD);
-        OutputStream output = new FileOutputStream(downloadPath.toString());
+        var downloadPath = fileUtils.getFilePath(addSignatureName(fileIn.getName()), FileLocationEnum.DOWNLOAD);
+        var output = new FileOutputStream(downloadPath.toString());
 
-        PDSignature signature = this.getPDSignature();
+        var signature = this.getPDSignature();
 
-        SignatureOptions signatureOptions = this.getSignatureOptions(signedDocument.length);
+        var signatureOptions = this.getSignatureOptions(signedDocument.length);
 
-        this.setVisualSignature(signature, signatureOptions, originalDocument, keyStore, url);
+        this.setVisualSignature(signature, signatureOptions, originalDocument, customCertificate, visualSignatureConfig, url);
 
         originalDocument.addSignature(signature, signatureOptions);
 
-        ExternalSigningSupport externalSigning = originalDocument.saveIncrementalForExternalSigning(output);
+        var externalSigning = originalDocument.saveIncrementalForExternalSigning(output);
         externalSigning.setSignature(signedDocument);
 
         originalDocument.saveIncremental(output);
@@ -157,19 +142,16 @@ public class SignatureService {
      * @return um objeto PDSignature pronto para ser adicionado ao documento
      */
     private PDSignature getPDSignature() {
-        PDSignature signature = new PDSignature();
+        var signature = new PDSignature();
         signature.setSignDate(Calendar.getInstance(TimeZone.getTimeZone("America/Sao_Paulo")));
         signature.setFilter(PDSignature.FILTER_ADOBE_PPKLITE);
         signature.setSubFilter(PDSignature.SUBFILTER_ADBE_PKCS7_DETACHED);
-//        signature.setName(alias);
-//        signature.setLocation("Caratinga, MG");
-//        signature.setReason("Assinatura");
 
         return signature;
     }
 
     private SignatureOptions getSignatureOptions(int signatureSize) {
-        SignatureOptions signatureOptions = new SignatureOptions();
+        var signatureOptions = new SignatureOptions();
         signatureOptions.setPreferredSignatureSize(signatureSize);
 
         return signatureOptions;
@@ -181,37 +163,58 @@ public class SignatureService {
      * @param signature        a assinatura a ser adicionada ao documento
      * @param signatureOptions as opções de assinatura
      * @param originalDocument o documento original
-     * @param keyStore         o KeyStore contendo as chaves
+     * @param customCertificate      especialização do certificado, contendo informações necessárias
      * @param url              a URL da assinatura visual
      * @throws IOException se houver um erro ao ler ou escrever o arquivo
      */
-    private void setVisualSignature(PDSignature signature, SignatureOptions signatureOptions, PDDocument originalDocument, KeyStore keyStore, String url) throws IOException, KeyStoreException {
-        // Obtém a última página do documento
-        PDPageTree pages = originalDocument.getDocumentCatalog().getPages();
-        PDPage lastPage = pages.get(pages.getCount() - 1);
+    private void setVisualSignature(
+            PDSignature signature,
+            SignatureOptions signatureOptions,
+            PDDocument originalDocument,
+            CustomCertificate customCertificate,
+            VisualSignatureConfig visualSignatureConfig,
+            String url
+    ) throws Exception {
+        // Obtém a página do documento a ser assinada
+        var pages = originalDocument.getDocumentCatalog().getPages();
+        int pageIndex = this.getPageIndex(visualSignatureConfig, pages.getCount());
+        var signaturePage = pages.get(pageIndex);
 
-        // Obtém o número da página onde a assinatura será adicionada
-        int pageNum = this.getPageIndex(pages.getCount());
-        signatureOptions.setPage(pageNum);
-        Rectangle2D humanRectangle;
-        Path signatureImageLocation;
+        //Gera a imagem da assinatura
+        byte[] signatureContent;
+        var name = customCertificate.getCertificateName();
+        var identifier = customCertificate.getIdentifier();
+        var date = signature.getSignDate().getTime();
+        var widthSignature = 0;
         if (url != null && !url.trim().isEmpty()) {
-            signatureImageLocation = this.fileUtils.getFilePath("assinatura_bg.jpg", FileLocationEnum.ASSET);
-            humanRectangle = this.getSignatureHumanRectangle(lastPage.getMediaBox(), 190, 70);
+            signatureContent = this.signatureImageGenerator.getDefaultSignature(name, identifier, date, url, true);
+            widthSignature = this.signatureImageGenerator.WITH_QR_WIDTH/10;
+            System.out.println("Entrou qr: ");
         } else {
-            signatureImageLocation = this.fileUtils.getFilePath("assinatura_bg_noQr.jpg", FileLocationEnum.ASSET);
-            humanRectangle = this.getSignatureHumanRectangle(lastPage.getMediaBox(), 130, 70);
+            signatureContent = this.signatureImageGenerator.getDefaultSignature(name, identifier, date, null, false);
+            widthSignature = this.signatureImageGenerator.WITHOUT_QR_WIDTH/10;
+            System.out.println("Entrou without qr: ");
         }
 
-        String alias = keyStore.aliases().nextElement();
-        X509Certificate certificate = (X509Certificate) keyStore.getCertificate(alias);
-        BasicCertificate bc = new BasicCertificate(certificate);
+        System.out.println("widthSignature: " + widthSignature);
+        System.out.println("eightSignature: " + this.signatureImageGenerator.HEIGHT/10);
+        //Configura a posição e tamanho da assinatura
+        var humanRectangle = getSignatureHumanRectangle(
+                visualSignatureConfig,
+                signaturePage,
+                widthSignature,
+                (this.signatureImageGenerator.HEIGHT/10)
+        );
 
-        var signatureContent = this.signatureImageFactory.getDefaultSignature(bc.getName(), certificate.getSubjectX500Principal().getName().split(":")[1].split(",")[0], signature.getSignDate().getTime().toString());
+        var inputStream = includeVisualSignature(
+                signaturePage,
+                humanRectangle,
+                signatureContent
+        );
 
-        PDRectangle rect = createSignatureRectangle(originalDocument, humanRectangle);
-
-        signatureOptions.setVisualSignature(createVisualSignatureTemplate(originalDocument, signature, pageNum, rect, signatureContent, keyStore, url));
+        // Configura a página a ser assinada
+        signatureOptions.setPage(pageIndex);
+        signatureOptions.setVisualSignature(inputStream);
     }
 
     /**
@@ -225,12 +228,16 @@ public class SignatureService {
      * @param pageCount o número total de páginas no documento
      * @return o índice da página onde a assinatura visual será adicionada
      */
-    private int getPageIndex(int pageCount) {
-        if (this.visualSignatureConfig == null || this.visualSignatureConfig.pageIndex() == -1 || this.visualSignatureConfig.pageIndex() >= pageCount) {
+    private int getPageIndex(VisualSignatureConfig visualSignatureConfig, int pageCount) {
+        if (
+            visualSignatureConfig == null ||
+            visualSignatureConfig.pageIndex() == -1 ||
+            visualSignatureConfig.pageIndex() >= pageCount
+        ) {
             return pageCount - 1;
         }
 
-        return this.visualSignatureConfig.pageIndex();
+        return visualSignatureConfig.pageIndex();
     }
 
     /**
@@ -239,16 +246,42 @@ public class SignatureService {
      * Se a Configuração de assinatura for nula, o retângulo será localizado no
      * centro da página, a 2cm do fim da página
      *
-     * @param pageBox as dimensões da página
+     * @param visualSignatureConfig as configurações da assinatura
+     * @param page                  a página a ser assinada
+     * @param signatureWidth        a largura da assinatura
+     * @param signatureHeight       a altura da assinatura
      * @return um retângulo que representa a área onde ficará a assinatura humana
      */
-    private Rectangle2D getSignatureHumanRectangle(PDRectangle pageBox, int width, int height) {
-        if (this.visualSignatureConfig != null) {
-            return new Rectangle2D.Float(visualSignatureConfig.x(), visualSignatureConfig.y(), width, height);
+    private Rectangle2D getSignatureHumanRectangle(
+            VisualSignatureConfig visualSignatureConfig,
+            PDPage page,
+            int signatureWidth,
+            int signatureHeight
+    ) {
+        //Troca a largura caso a página esteja deitada
+        var pageBox = page.getMediaBox();
+        var pageWidth = pageBox.getWidth();
+        if(page.getRotation() == 90 || page.getRotation() == 270) {
+            pageWidth = pageBox.getHeight();
         }
 
-        return new Rectangle2D.Float((pageBox.getWidth() - (width)) / 2, (float) (((16) * 72) / 25.4), //Converte 16mm pra points
-                width, height);
+        //Retorna os valores da configuração customizada
+        if (visualSignatureConfig != null) {
+            return new Rectangle2D.Float(
+                visualSignatureConfig.x(),
+                visualSignatureConfig.y(),
+                signatureWidth,
+                signatureHeight
+            );
+        }
+
+        //Retorna a posição padrão centralizada, e com margem ABNT
+        return new Rectangle2D.Float(
+            (pageWidth - (signatureWidth)) / 2,
+            (float) (((16) * 72) / 25.4), //Margem de 16mm convertido para points (No mundo real 2cm)
+            signatureWidth,
+            signatureHeight
+        );
     }
 
     /**
@@ -259,10 +292,10 @@ public class SignatureService {
      * @return o nome do arquivo com "_assinado" acrescentado
      */
     private String addSignatureName(String fileName) {
-        int indicePonto = fileName.lastIndexOf('.');
+        var indicePonto = fileName.lastIndexOf('.');
         if (indicePonto != -1) {
-            String name = fileName.substring(0, indicePonto);
-            String extension = fileName.substring(indicePonto);
+            var name = fileName.substring(0, indicePonto);
+            var extension = fileName.substring(indicePonto);
 
             return name + "_assinado" + extension;
         }
@@ -274,207 +307,105 @@ public class SignatureService {
      * A assinatura será desenhada na página com as mesmas coordenadas (x, y) independentemente da rotação da página.
      * As coordenadas começam da parte inferior esquerda da página.
      *
-     * @param doc            o documento que contém a página a ser assinada
-     * @param humanRectangle o retângulo que representa a área onde a assinatura humana deve ser desenhada
+     * @param page           a página a ser assinada
+     * @param humanRectangle o retângulo que representa a área onde a assinatura deve ser desenhada
      * @return o retângulo que representa a área onde a assinatura será desenhada
      */
-    private PDRectangle createSignatureRectangle(PDDocument doc, Rectangle2D humanRectangle) {
-        float x = (float) humanRectangle.getX();
-        float y = (float) humanRectangle.getY();
-        float width = (float) humanRectangle.getWidth();
-        float height = (float) humanRectangle.getHeight();
-        PDPage page = doc.getPage(0);
-        PDRectangle pageRect = page.getCropBox();
-        PDRectangle rect = new PDRectangle();
+    private PDRectangle createSignatureRectangle(PDPage page, Rectangle2D humanRectangle) {
+        var x = (float) humanRectangle.getX();
+        var y = (float) humanRectangle.getY();
+        var width = (float) humanRectangle.getWidth();
+        var height = (float) humanRectangle.getHeight();
+        var cropBox = page.getCropBox();
+        var rectangle = new PDRectangle();
 
         // Signature image should be at the same position regardless of page rotation.
         // Coordinates start from bottom left.
         switch (page.getRotation()) {
             case 90:
-                rect.setLowerLeftX(pageRect.getWidth() - y - height);
-                rect.setUpperRightX(pageRect.getWidth() - y);
-                rect.setLowerLeftY(x);
-                rect.setUpperRightY(x + width);
+                rectangle.setLowerLeftX(cropBox.getWidth() - y - height);
+                rectangle.setUpperRightX(cropBox.getWidth() - y);
+                rectangle.setLowerLeftY(x);
+                rectangle.setUpperRightY(x + width);
                 break;
             case 180:
-                rect.setLowerLeftX(pageRect.getWidth() - x - width);
-                rect.setUpperRightX(pageRect.getWidth() - x);
-                rect.setLowerLeftY(pageRect.getHeight() - y - height);
-                rect.setUpperRightY(pageRect.getHeight() - y);
+                rectangle.setLowerLeftX(cropBox.getWidth() - x - width);
+                rectangle.setUpperRightX(cropBox.getWidth() - x);
+                rectangle.setLowerLeftY(cropBox.getHeight() - y - height);
+                rectangle.setUpperRightY(cropBox.getHeight() - y);
                 break;
             case 270:
-                rect.setLowerLeftX(y);
-                rect.setUpperRightX(y + height);
-                rect.setLowerLeftY(pageRect.getHeight() - x - width);
-                rect.setUpperRightY(pageRect.getHeight() - x);
+                rectangle.setLowerLeftX(y);
+                rectangle.setUpperRightX(y + height);
+                rectangle.setLowerLeftY(cropBox.getHeight() - x - width);
+                rectangle.setUpperRightY(cropBox.getHeight() - x);
                 break;
             case 0:
             default:
-                rect.setLowerLeftX(x);
-                rect.setUpperRightX(x + width);
-                rect.setLowerLeftY(y);
-                rect.setUpperRightY(y + height);
+                rectangle.setLowerLeftX(x);
+                rectangle.setUpperRightX(x + width);
+                rectangle.setLowerLeftY(y);
+                rectangle.setUpperRightY(y + height);
                 break;
         }
 
-        return rect;
+        return rectangle;
     }
 
     /**
      * Cria um template de assinatura visual para os parâmetros dados.
      *
-     * @param srcDoc           o documento de origem
-     * @param signature        o objeto de assinatura
-     * @param pageNum          o número da página
-     * @param rect             o retângulo
-     * @param signatureContent o conteúdo da assinatura
-     * @param keyStore         o repositório de chaves
-     * @param url              a URL
+     * @param oldPage           a página de origem
+     * @param humanRectangle    o retângulo
+     * @param signatureContent  o conteúdo da assinatura
+     *
      * @return um fluxo de entrada com o template de assinatura visual
      * @throws IOException se ocorrer um erro de I/O
      */
-    private InputStream createVisualSignatureTemplate(PDDocument srcDoc, PDSignature signature, int pageNum, PDRectangle rect, byte[] signatureContent, KeyStore keyStore, String url) throws IOException {
+    private InputStream includeVisualSignature(
+            PDPage oldPage,
+            Rectangle2D humanRectangle,
+            byte[] signatureContent
+    ) throws IOException {
         try (PDDocument doc = new PDDocument()) {
-            PDPage page = new PDPage(srcDoc.getPage(pageNum).getMediaBox());
-            doc.addPage(page);
-            PDAcroForm acroForm = new PDAcroForm(doc);
-            doc.getDocumentCatalog().setAcroForm(acroForm);
-            PDSignatureField signatureField = new PDSignatureField(acroForm);
-            PDAnnotationWidget widget = signatureField.getWidgets().get(0);
-            List<PDField> acroFormFields = acroForm.getFields();
-            acroForm.setSignaturesExist(true);
-            acroForm.setAppendOnly(true);
-            acroForm.getCOSObject().setDirect(true);
-            acroFormFields.add(signatureField);
+            var rectanglePosition = createSignatureRectangle(oldPage, humanRectangle);
 
-            widget.setRectangle(rect);
+            var newPage = new PDPage(oldPage.getMediaBox());
+            doc.addPage(newPage);
 
-            // from PDVisualSigBuilder.createHolderForm()
-            PDStream stream = new PDStream(doc);
-            PDFormXObject form = new PDFormXObject(stream);
-            PDResources res = new PDResources();
-            form.setResources(res);
-            form.setFormType(1);
-            PDRectangle bbox = new PDRectangle(rect.getWidth(), rect.getHeight());
-            Matrix initialScale = null;
-            int pageRotation = srcDoc.getPage(0).getRotation();
-            switch (pageRotation) {
-                case 90:
-                    form.setMatrix(AffineTransform.getQuadrantRotateInstance(1));
-                    initialScale = Matrix.getScaleInstance(bbox.getWidth() / bbox.getHeight(), bbox.getHeight() / bbox.getWidth());
-                    break;
-                case 180:
-                    form.setMatrix(AffineTransform.getQuadrantRotateInstance(2));
-                    break;
-                case 270:
-                    form.setMatrix(AffineTransform.getQuadrantRotateInstance(3));
-                    initialScale = Matrix.getScaleInstance(bbox.getWidth() / bbox.getHeight(), bbox.getHeight() / bbox.getWidth());
-                    break;
-                default:
-                    break;
-            }
+            var widget = PDFUtils.setAcroForm(doc);
+            widget.setRectangle(rectanglePosition);
+
+            var bbox = new PDRectangle(rectanglePosition.getWidth(), rectanglePosition.getHeight());
+            var initialScale = PDFUtils.getInitialScaleRotation(oldPage, bbox);
+            var pageRotation = oldPage.getRotation();
+            var form = PDFUtils.setFormXObject(doc, pageRotation);
             form.setBBox(bbox);
 
-            // From PDVisualSigBuilder.createAppearanceDictionary()
-            PDAppearanceDictionary appearance = new PDAppearanceDictionary();
-            appearance.getCOSObject().setDirect(true);
-            PDAppearanceStream appearanceStream = new PDAppearanceStream(form.getCOSObject());
-            appearance.setNormalAppearance(appearanceStream);
-            widget.setAppearance(appearance);
+            var appearanceStream = PDFUtils.createAppearanceDictionary(form, widget);
 
-            try (PDPageContentStream cs = new PDPageContentStream(doc, appearanceStream)) {
+            try (var contentStream = new PDPageContentStream(doc, appearanceStream)) {
                 if (initialScale != null) {
-                    cs.transform(initialScale);
+                    contentStream.transform(initialScale);
                 }
 
-                if (signatureContent != null) {
-//                    byte[] image = Base64.getDecoder().decode(imageInBase64);
-                    cs.saveGraphicsState();
+                contentStream.saveGraphicsState();
 
-                    float imageWidth = bbox.getWidth();
-                    float imageHeight = bbox.getHeight();
-                    if (pageRotation == 90 || pageRotation == 270) {
-                        imageWidth = bbox.getHeight();
-                        imageHeight = bbox.getWidth();
-                    }
-
-                    PDImageXObject img = PDImageXObject.createFromByteArray(doc, signatureContent, "signature.jpg");
-
-                    cs.drawImage(img, 0, 0, imageWidth, imageHeight);
-
-                    var infoFontSize = (float) (imageHeight * 0.06);
-                    var fontSize = (float) (imageHeight * 0.085);
-                    var spacing = (float) (imageHeight * 0.025);
-                    var marginLeft = (float) ((imageHeight * 0.05));
-
-                    if (url != null && !url.trim().isEmpty()) {
-                        var qr = generateQrcode(appConfig.getUrl() + "/api/v1/qr-code&url=" + url);
-                        PDImageXObject imgQr = PDImageXObject.createFromByteArray(doc, qr, "qrCode.jpg");
-                        cs.drawImage(imgQr, (float) (imageHeight * 0.025), (float) (imageHeight * 0.125), (float) (imageHeight * 0.85), (float) (imageHeight * 0.85));
-                        cs.restoreGraphicsState();
-
-                        cs.setFont(PDType1Font.HELVETICA_BOLD, infoFontSize);
-                        cs.beginText();
-                        cs.newLineAtOffset((float) (imageHeight * 0.023), (float) (spacing * 1.5));
-                        cs.showText("CÓDIGO PARA VERIFICAÇÃO");
-                        cs.endText();
-                        marginLeft = (float) ((imageHeight * 0.95));
-                    }
-
-                    String alias = keyStore.aliases().nextElement();
-                    X509Certificate certificate = (X509Certificate) keyStore.getCertificate(alias);
-                    BasicCertificate bc = new BasicCertificate(certificate);
-
-                    var identifier = certificate.getSubjectX500Principal().getName().split(":")[1].split(",")[0];
-
-                    cs.setFont(PDType1Font.HELVETICA, fontSize);
-                    cs.beginText();
-                    if (url != null && !url.trim().isEmpty()) {
-                        cs.newLineAtOffset(marginLeft, (spacing * 5));
-                    } else {
-                        cs.newLineAtOffset(marginLeft, (spacing * 3));
-                    }
-                    var sdf = new SimpleDateFormat("dd/MM/yyyy   HH:mm:ss   'UTC'XXX");
-                    var date = signature.getSignDate().getTime();
-                    cs.showText(sdf.format(date));
-                    cs.newLineAtOffset(0, (spacing * 10));
-                    cs.showText(formatCpfOrCnpj(identifier));
-                    cs.newLineAtOffset(0, (float) (spacing * 21.5));
-                    cs.showText("Documento assinado digitalmente");
-                    cs.endText();
-
-                    cs.setFont(PDType1Font.HELVETICA_BOLD, fontSize);
-                    cs.beginText();
-                    var words = bc.getName().split(" ");
-                    var lines = new ArrayList<String>();
-                    lines.add("");
-
-                    var indexLine = 0;
-                    for (String word : words) {
-                        if (lines.get(indexLine).length() + word.length() > 30) {
-                            indexLine++;
-                            lines.add("");
-                        }
-                        lines.set(indexLine, lines.get(indexLine) + " " + word);
-                    }
-
-                    cs.newLineAtOffset(marginLeft, (float) (spacing * (27 - (lines.size() * 1.5))));
-                    for (int i = lines.size() - 1; i >= 0; i--) {
-                        cs.showText(lines.get(i).trim());
-                        cs.newLineAtOffset(0, fontSize);
-                    }
-
-                    cs.endText();
-                    cs.restoreGraphicsState();
+                float imageWidth = bbox.getWidth();
+                float imageHeight = bbox.getHeight();
+                if (pageRotation == 90 || pageRotation == 270) {
+                    imageWidth = bbox.getHeight();
+                    imageHeight = bbox.getWidth();
                 }
 
-            } catch (Exception e) {
-                throw new RuntimeException(e);
+                var imageObject = PDImageXObject.createFromByteArray(doc, signatureContent, "signature.jpg");
+                contentStream.drawImage(imageObject, 0, 0, imageWidth, imageHeight);
+                contentStream.restoreGraphicsState();
             }
 
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            doc.save(baos);
-            return new ByteArrayInputStream(baos.toByteArray());
+            var byteArrayOutputStream = new ByteArrayOutputStream();
+            doc.save(byteArrayOutputStream);
+            return new ByteArrayInputStream(byteArrayOutputStream.toByteArray());
         }
     }
 
@@ -563,9 +494,5 @@ public class SignatureService {
         SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmssZ");
         Date date = formatter.parse(dateString);
         return date;
-    }
-
-    public void setVisualSignatureConfig(VisualSignatureConfig vsc) {
-
     }
 }

@@ -8,7 +8,6 @@ import java.io.ByteArrayOutputStream;
 import java.util.Objects;
 
 public class QrCodeUtils {
-
     /**
      * Gera uma imagem de código QR com base no texto fornecido.
      *
@@ -16,12 +15,9 @@ public class QrCodeUtils {
      * @return Uma imagem {@link BufferedImage} representando o código QR gerado.
      * @throws Exception Caso ocorra um erro ao gerar o código QR.
      */
-    public static byte[] generateQrcode(String barcodeText) throws Exception {
+    public static BufferedImage generateQrcode(String barcodeText) throws Exception {
         QrCode qrCode = QrCode.encodeText(barcodeText, QrCode.Ecc.HIGH);
-        BufferedImage img = toImage(qrCode, 4, 0, 0xFFFFFF, 0x000000);
-        var baos = new ByteArrayOutputStream();
-        ImageIO.write(img, "jpeg", baos);
-        return baos.toByteArray();
+        return toImage(qrCode, 4, 0, 0xFFFFFF, 0x000000);
     }
 
     /**
@@ -55,6 +51,7 @@ public class QrCodeUtils {
                 result.setRGB(x, y, color ? darkColor : lightColor);
             }
         }
+
         return result;
     }
 }

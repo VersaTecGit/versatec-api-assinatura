@@ -1,4 +1,4 @@
-package com.example.springboot.records;
+package com.example.springboot.customs;
 
 public record VisualSignatureConfig(
         int pageIndex,

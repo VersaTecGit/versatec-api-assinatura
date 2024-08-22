@@ -1,16 +1,15 @@
 package com.example.springboot.controllers;
 
-import com.example.springboot.enums.FileLocationEnum;
-import com.example.springboot.exceptions.WrongCertificatePasswordException;
-import com.example.springboot.records.VisualSignatureConfig;
-import com.example.springboot.services.CertificateService;
+import com.example.springboot.customs.FileLocationEnum;
+import com.example.springboot.customs.WrongCertificatePasswordException;
+import com.example.springboot.customs.CustomCertificate;
+import com.example.springboot.customs.VisualSignatureConfig;
 import com.example.springboot.services.SignatureService;
 import com.example.springboot.utils.FileUtils;
 import org.demoiselle.signer.core.exception.CertificateValidatorException;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import org.demoiselle.signer.policy.impl.cades.SignatureInformations;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -24,8 +23,6 @@ import java.nio.file.Path;
 import java.nio.file.Files;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.security.KeyStore;
-import java.security.cert.X509Certificate;
 import java.util.*;
 
 @RestController
@@ -33,39 +30,48 @@ import java.util.*;
 @Validated
 public class SignerController {
 
-    @Autowired
-    SignatureService signatureService;
+    public final SignatureService signatureService;
+    public final FileUtils fileUtils;
 
-    @Autowired
-    CertificateService certificateService;
-
-    @Autowired
-    FileUtils fileUtils;
+    public SignerController(SignatureService signatureService, FileUtils fileUtils) {
+        this.signatureService = signatureService;
+        this.fileUtils = fileUtils;
+    }
 
     @PostMapping("/sign")
-    public ResponseEntity<?> signer(@RequestParam(required = false) @NotNull MultipartFile file, @RequestParam(required = false) @NotNull MultipartFile certificate, @RequestParam(required = false) @NotNull @NotEmpty String password, @RequestParam(required = false) String url, @RequestParam(required = false) Integer pageIndex, @RequestParam(required = false) Integer x, @RequestParam(required = false) Integer y) throws IOException {
+    public ResponseEntity<?> sign (
+            @RequestParam(required = false) @NotNull MultipartFile file,
+            @RequestParam(value="certificate", required = false) @NotNull MultipartFile certificateFile,
+            @RequestParam(required = false) @NotNull @NotEmpty String password,
+            @RequestParam(required = false) String url,
+            @RequestParam(required = false) Integer pageIndex,
+            @RequestParam(required = false) Integer x,
+            @RequestParam(required = false) Integer y
+    ) throws IOException {
         var filePath = this.fileUtils.uploadFile(file, FileLocationEnum.UPLOAD);
-        var certificatePath = this.fileUtils.uploadBytes(certificate, FileLocationEnum.UPLOAD);
+        var certificatePath = this.fileUtils.uploadBytes(certificateFile, FileLocationEnum.UPLOAD);
         Path outputPath = null;
 
         try {
-            var keyStore = this.certificateService.getKeyStore(certificatePath, password);
+            VisualSignatureConfig visualSignatureConfig = null;
             if (pageIndex != null && x != null && y != null) {
-                var vsc = new VisualSignatureConfig(pageIndex, x, y);
-                this.signatureService.setVisualSignatureConfig(vsc);
-            } else {
-                this.signatureService.setVisualSignatureConfig(null);
+                visualSignatureConfig = new VisualSignatureConfig(pageIndex, x, y);
             }
 
-            byte[] signedDocument = this.signatureService.signDocument(filePath, keyStore, password);
+            var certificate = new CustomCertificate(certificatePath, password);
+            byte[] signedDocument = this.signatureService.signDocument(filePath, certificate);
 
-            outputPath = this.signatureService.createPDF(filePath, signedDocument, keyStore, url);
+            outputPath = this.signatureService.createPDF(filePath, signedDocument, certificate, visualSignatureConfig, url);
             var signedPdfData = Files.readAllBytes(outputPath);
 
             HttpHeaders headers = new HttpHeaders();
             headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=signed_" + file.getOriginalFilename());
 
-            return ResponseEntity.ok().headers(headers).contentLength(signedPdfData.length).contentType(MediaType.APPLICATION_PDF).body(signedPdfData);
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .contentLength(signedPdfData.length)
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .body(signedPdfData);
         } catch (WrongCertificatePasswordException e) {
             return ResponseEntity.status(401).body(e.getMessage());
         } catch (CertificateValidatorException e) {
@@ -75,14 +81,14 @@ public class SignerController {
         } finally {
             this.fileUtils.removeFile(filePath);
             this.fileUtils.removeFile(certificatePath);
-            if (outputPath != null) {
-                this.fileUtils.removeFile(outputPath);
-            }
+            this.fileUtils.removeFile(outputPath);
         }
     }
 
     @PostMapping("/validate-signature")
-    public ResponseEntity<String> checkSigner(@RequestParam(required = false) @NotNull MultipartFile file) throws IOException {
+    public ResponseEntity<String> validateSignature(
+            @RequestParam(required = false) @NotNull MultipartFile file
+    ) throws IOException {
         var filePath = this.fileUtils.uploadFile(file, FileLocationEnum.UPLOAD);
 
         try {
@@ -101,11 +107,15 @@ public class SignerController {
     }
 
     @PostMapping("/validate-certificate")
-    public ResponseEntity<String> checkCertificate(@RequestParam(required = false) @NotNull MultipartFile certificate, @RequestParam(required = false) @NotNull @NotEmpty String password) throws IOException {
-        var certificatePath = this.fileUtils.uploadBytes(certificate, FileLocationEnum.UPLOAD);
+    public ResponseEntity<String> validateCertificate(
+            @RequestParam(value="certificate", required = false) @NotNull MultipartFile certificateFile,
+            @RequestParam(required = false) @NotNull @NotEmpty String password
+    ) throws IOException {
+        var certificatePath = this.fileUtils.uploadBytes(certificateFile, FileLocationEnum.UPLOAD);
 
         try {
-            this.certificateService.checkValidity(certificatePath, password);
+            var certificate = new CustomCertificate(certificatePath, password);
+            certificate.checkValidity();
             return ResponseEntity.ok("Valid certificate");
         } catch (Exception e) {
             return ResponseEntity.ok("Invalid certificate");
@@ -115,7 +125,11 @@ public class SignerController {
     }
 
     @GetMapping("/qr-code")
-    public ResponseEntity<String> redirectQrCode(@RequestParam(value = "_format", required = false) String format, @RequestParam(value = "_secretCode", required = false) String secretCode, @RequestParam(required = false) @NotNull @NotEmpty String url) throws URISyntaxException {
+    public ResponseEntity<String> qrCode(
+            @RequestParam(value = "_format", required = false) String format,
+            @RequestParam(value = "_secretCode", required = false) String secretCode,
+            @RequestParam(required = false) @NotNull @NotEmpty String url
+    ) throws URISyntaxException {
         if (Objects.equals(format, "application/validador-iti json")) {
             return ResponseEntity.ok("{\"url\": \"" + url + "\"}");
         } else {

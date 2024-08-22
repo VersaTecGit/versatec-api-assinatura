@@ -1,11 +1,11 @@
-package com.example.springboot;
+package com.example.springboot.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
 @ConfigurationProperties(prefix = "app")
-public class AppConfig {
+public class AppProperties {
     private String url;
 
     public String getUrl() {

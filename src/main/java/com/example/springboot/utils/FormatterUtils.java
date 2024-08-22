@@ -1,5 +1,8 @@
 package com.example.springboot.utils;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
 public class FormatterUtils {
 
     /**
@@ -9,10 +12,6 @@ public class FormatterUtils {
      * @return Número de CPF ou CNPJ formatado
      */
     public static String formatCpfOrCnpj(String number) {
-        if (number == null || number.isEmpty()) {
-            return "";
-        }
-
         number = number.replaceAll("\\D", "");
 
         if (number.length() == 11) {
@@ -22,7 +21,13 @@ public class FormatterUtils {
             // CNPJ
             return number.replaceAll("(\\d{2})(\\d{3})(\\d{3})(\\d{4})(\\d{2})", "$1.$2.$3/$4-$5");
         } else {
-            return "Invalid length";
+            return number;
         }
+    }
+
+    public static String formatDate(Date date)
+    {
+        var simpleDateFormat = new SimpleDateFormat("dd/MM/yyyy   HH:mm:ss   'UTC'XXX");
+        return simpleDateFormat.format(date);
     }
 }

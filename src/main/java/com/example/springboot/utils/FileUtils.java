@@ -1,7 +1,7 @@
 package com.example.springboot.utils;
 
-import com.example.springboot.enums.FileLocationEnum;
-import com.example.springboot.FileStorageProperties;
+import com.example.springboot.customs.FileLocationEnum;
+import com.example.springboot.config.FileStorageProperties;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -57,7 +57,9 @@ public class FileUtils {
     }
 
     public void removeFile(Path filePath) throws IOException {
-        Files.deleteIfExists(filePath);
+        if(filePath !=null) {
+            Files.deleteIfExists(filePath);
+        }
     }
 
     private String getRandomHash() {
