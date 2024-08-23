@@ -119,7 +119,6 @@ public class SignerService {
         }
     }
 
-
     /**
      * Retorna um objeto KeyStore a partir de um arquivo de certificado e uma senha.
      *

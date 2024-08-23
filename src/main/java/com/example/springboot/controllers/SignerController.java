@@ -5,6 +5,7 @@ import com.example.springboot.services.CheckSignerService;
 import com.example.springboot.services.SignerService;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import org.demoiselle.signer.core.exception.CertificateValidatorException;
 import org.demoiselle.signer.policy.impl.cades.SignatureInformations;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -55,7 +56,14 @@ public class SignerController {
                 this.signerService.setVisualSignatureConfig(null);
             }
 
-            KeyStore keyStore = this.signerService.getKeyStore(certificateHash, password);
+            KeyStore keyStore;
+            try{
+                keyStore = this.signerService.getKeyStore(certificateHash, password);
+            }
+            catch (IOException e)
+            {
+                return ResponseEntity.status(401).body(e.getMessage());
+            }
 
             byte[] signedDocument = this.signerService.signDocument(fileHash, keyStore, password);
 
@@ -64,16 +72,17 @@ public class SignerController {
             HttpHeaders headers = new HttpHeaders();
             headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=signed_" + file.getOriginalFilename());
 
-            this.signerService.removeAllFiles(fileHash, certificateHash);
-
             return ResponseEntity.ok()
                     .headers(headers)
                     .contentLength(signedPdfData.length)
                     .contentType(MediaType.APPLICATION_PDF)
                     .body(signedPdfData);
+        } catch (CertificateValidatorException e) {
+            return ResponseEntity.status(403).body(e.getMessage());
         } catch (Exception e) {
-            this.signerService.removeAllFiles(fileHash, certificateHash);
             return ResponseEntity.badRequest().body(e.getMessage());
+        } finally {
+            this.signerService.removeAllFiles(fileHash, certificateHash);
         }
     }
 
