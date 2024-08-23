@@ -189,15 +189,11 @@ public class SignatureService {
         if (url != null && !url.trim().isEmpty()) {
             signatureContent = this.signatureImageGenerator.getDefaultSignature(name, identifier, date, url, true);
             widthSignature = this.signatureImageGenerator.WITH_QR_WIDTH/10;
-            System.out.println("Entrou qr: ");
         } else {
             signatureContent = this.signatureImageGenerator.getDefaultSignature(name, identifier, date, null, false);
             widthSignature = this.signatureImageGenerator.WITHOUT_QR_WIDTH/10;
-            System.out.println("Entrou without qr: ");
         }
 
-        System.out.println("widthSignature: " + widthSignature);
-        System.out.println("eightSignature: " + this.signatureImageGenerator.HEIGHT/10);
         //Configura a posição e tamanho da assinatura
         var humanRectangle = getSignatureHumanRectangle(
                 visualSignatureConfig,

@@ -41,7 +41,7 @@ public class SignerController {
     @PostMapping("/sign")
     public ResponseEntity<?> sign (
             @RequestParam(required = false) @NotNull MultipartFile file,
-            @RequestParam(value="certificate", required = false) @NotNull MultipartFile certificateFile,
+            @RequestParam(required = false) @NotNull MultipartFile certificate,
             @RequestParam(required = false) @NotNull @NotEmpty String password,
             @RequestParam(required = false) String url,
             @RequestParam(required = false) Integer pageIndex,
@@ -49,7 +49,7 @@ public class SignerController {
             @RequestParam(required = false) Integer y
     ) throws IOException {
         var filePath = this.fileUtils.uploadFile(file, FileLocationEnum.UPLOAD);
-        var certificatePath = this.fileUtils.uploadBytes(certificateFile, FileLocationEnum.UPLOAD);
+        var certificatePath = this.fileUtils.uploadBytes(certificate, FileLocationEnum.UPLOAD);
         Path outputPath = null;
 
         try {
@@ -58,10 +58,10 @@ public class SignerController {
                 visualSignatureConfig = new VisualSignatureConfig(pageIndex, x, y);
             }
 
-            var certificate = new CustomCertificate(certificatePath, password);
-            byte[] signedDocument = this.signatureService.signDocument(filePath, certificate);
+            var customCertificate = new CustomCertificate(certificatePath, password);
+            byte[] signedDocument = this.signatureService.signDocument(filePath, customCertificate);
 
-            outputPath = this.signatureService.createPDF(filePath, signedDocument, certificate, visualSignatureConfig, url);
+            outputPath = this.signatureService.createPDF(filePath, signedDocument, customCertificate, visualSignatureConfig, url);
             var signedPdfData = Files.readAllBytes(outputPath);
 
             HttpHeaders headers = new HttpHeaders();
