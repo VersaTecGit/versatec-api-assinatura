@@ -1,7 +1,7 @@
-package com.example.springboot.utils;
+package com.versatec.utils;
 
-import com.example.springboot.customs.FileLocationEnum;
-import com.example.springboot.config.FileStorageProperties;
+import com.versatec.customs.FileLocationEnum;
+import com.versatec.config.FileStorageProperties;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;

@@ -1,4 +1,4 @@
-package com.example.springboot.utils;
+package com.versatec.utils;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;

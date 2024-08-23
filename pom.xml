@@ -8,11 +8,11 @@
         <version>3.1.10</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
-    <groupId>com.example</groupId>
+    <groupId>com.versatec</groupId>
     <artifactId>ApiDigitalSignature</artifactId>
     <version>${revision}</version>
-    <name>springboot</name>
-    <description>Demo project for Spring Boot</description>
+    <name>Api Digital Signature</name>
+    <description> </description>
     <properties>
         <java.version>17</java.version>
     </properties>

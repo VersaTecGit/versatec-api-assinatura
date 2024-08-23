@@ -1,4 +1,4 @@
-package com.example.springboot.customs;
+package com.versatec.customs;
 
 public class WrongCertificatePasswordException extends Exception {
 

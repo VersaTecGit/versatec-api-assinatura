@@ -1,8 +1,8 @@
-package com.example.springboot.utils;
+package com.versatec.utils;
 
 
-import com.example.springboot.config.AppProperties;
-import com.example.springboot.customs.FileLocationEnum;
+import com.versatec.config.AppProperties;
+import com.versatec.customs.FileLocationEnum;
 import org.springframework.stereotype.Component;
 
 import javax.imageio.ImageIO;
@@ -11,9 +11,9 @@ import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.Date;
 
-import static com.example.springboot.utils.FormatterUtils.formatCpfOrCnpj;
-import static com.example.springboot.utils.FormatterUtils.formatDate;
-import static com.example.springboot.utils.QrCodeUtils.generateQrcode;
+import static com.versatec.utils.FormatterUtils.formatCpfOrCnpj;
+import static com.versatec.utils.FormatterUtils.formatDate;
+import static com.versatec.utils.QrCodeUtils.generateQrcode;
 
 @Component
 public class SignatureImageGenerator {

@@ -1,11 +1,11 @@
-package com.example.springboot.controllers;
+package com.versatec.controllers;
 
-import com.example.springboot.customs.FileLocationEnum;
-import com.example.springboot.customs.WrongCertificatePasswordException;
-import com.example.springboot.customs.CustomCertificate;
-import com.example.springboot.customs.VisualSignatureConfig;
-import com.example.springboot.services.SignatureService;
-import com.example.springboot.utils.FileUtils;
+import com.versatec.customs.FileLocationEnum;
+import com.versatec.customs.WrongCertificatePasswordException;
+import com.versatec.customs.CustomCertificate;
+import com.versatec.customs.VisualSignatureConfig;
+import com.versatec.services.SignatureService;
+import com.versatec.utils.FileUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.demoiselle.signer.core.exception.CertificateValidatorException;

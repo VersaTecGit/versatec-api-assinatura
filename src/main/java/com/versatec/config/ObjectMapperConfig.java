@@ -1,4 +1,4 @@
-package com.example.springboot.config;
+package com.versatec.config;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.databind.ObjectMapper;

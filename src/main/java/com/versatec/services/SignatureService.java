@@ -1,12 +1,12 @@
-package com.example.springboot.services;
+package com.versatec.services;
 
-import com.example.springboot.customs.CustomCertificate;
-import com.example.springboot.customs.FileLocationEnum;
-import com.example.springboot.customs.WrongCertificatePasswordException;
-import com.example.springboot.utils.SignatureImageGenerator;
-import com.example.springboot.customs.VisualSignatureConfig;
-import com.example.springboot.utils.FileUtils;
-import com.example.springboot.utils.PDFUtils;
+import com.versatec.customs.CustomCertificate;
+import com.versatec.customs.FileLocationEnum;
+import com.versatec.customs.WrongCertificatePasswordException;
+import com.versatec.utils.SignatureImageGenerator;
+import com.versatec.customs.VisualSignatureConfig;
+import com.versatec.utils.FileUtils;
+import com.versatec.utils.PDFUtils;
 import org.apache.pdfbox.cos.COSBase;
 import org.apache.pdfbox.cos.COSDictionary;
 import org.apache.pdfbox.cos.COSName;

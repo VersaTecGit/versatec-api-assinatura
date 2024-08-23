@@ -1,10 +1,8 @@
-package com.example.springboot.utils;
+package com.versatec.utils;
 
 import io.nayuki.qrcodegen.QrCode;
 
-import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
 import java.util.Objects;
 
 public class QrCodeUtils {

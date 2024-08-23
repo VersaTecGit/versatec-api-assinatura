@@ -1,4 +1,4 @@
-package com.example.springboot.customs;
+package com.versatec.customs;
 
 public record VisualSignatureConfig(
         int pageIndex,

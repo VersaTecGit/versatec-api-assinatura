@@ -1,4 +1,4 @@
-package com.example.springboot.midlewares;
+package com.versatec.midlewares;
 
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
