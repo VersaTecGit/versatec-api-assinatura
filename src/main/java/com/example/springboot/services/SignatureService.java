@@ -57,13 +57,14 @@ public class SignatureService {
      * Assina um documento a partir de um arquivo e de um par de chaves.
      *
      * @param filePath          o nome do arquivo a ser assinado
-     * @param customCertificate especialização do certificado, contendo informações necessárias
+     * @param customCertificate certificado contendo informações necessárias
      *
      * @return o documento assinado
-     * @throws IOException               se houver um erro ao ler o arquivo
-     * @throws UnrecoverableKeyException se a chave privada não puder ser recuperada
-     * @throws KeyStoreException         se houver um erro com o KeyStore
-     * @throws NoSuchAlgorithmException  se o algoritmo de hash não é suportado
+     * @throws IOException                          se houver um erro ao ler o arquivo
+     * @throws UnrecoverableKeyException            se a chave privada não puder ser recuperada
+     * @throws KeyStoreException                    se houver um erro com o KeyStore
+     * @throws NoSuchAlgorithmException             se o algoritmo de hash não é suportado
+     * @throws WrongCertificatePasswordException    se a senha do certificado estiver incorreta
      */
     public byte[] signDocument(Path filePath, CustomCertificate customCertificate)
             throws IOException,
@@ -72,7 +73,7 @@ public class SignatureService {
             NoSuchAlgorithmException,
             WrongCertificatePasswordException
     {
-        var signer = getPKCS7Signer(customCertificate);
+        var signer = this.getPKCS7Signer(customCertificate);
         byte[] content = Files.readAllBytes(filePath);
         return signer.doAttachedSign(content);
     }
@@ -114,10 +115,11 @@ public class SignatureService {
             VisualSignatureConfig visualSignatureConfig,
             String url)
     throws Exception {
-        var fileIn = fileUtils.getFile(filePath);
-        var originalDocument = PDDocument.load(fileIn);
+        var originalFile = fileUtils.getFile(filePath); //originalFile - nome ruim
+        var originalDocument = PDDocument.load(originalFile);
 
-        var downloadPath = fileUtils.getFilePath(addSignatureName(fileIn.getName()), FileLocationEnum.DOWNLOAD);
+        var signedFileName = this.addSignatureName(originalFile.getName());
+        var downloadPath = fileUtils.getFilePath(signedFileName, FileLocationEnum.DOWNLOAD);
         var output = new FileOutputStream(downloadPath.toString());
 
         var signature = this.getPDSignature();

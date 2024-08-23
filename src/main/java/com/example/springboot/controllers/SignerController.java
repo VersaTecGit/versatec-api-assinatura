@@ -39,7 +39,7 @@ public class SignerController {
     }
 
     @PostMapping("/sign")
-    public ResponseEntity<?> sign (
+    public ResponseEntity<?> sign(
             @RequestParam(required = false) @NotNull MultipartFile file,
             @RequestParam(required = false) @NotNull MultipartFile certificate,
             @RequestParam(required = false) @NotNull @NotEmpty String password,
@@ -108,14 +108,14 @@ public class SignerController {
 
     @PostMapping("/validate-certificate")
     public ResponseEntity<String> validateCertificate(
-            @RequestParam(value="certificate", required = false) @NotNull MultipartFile certificateFile,
+            @RequestParam(required = false) @NotNull MultipartFile certificate,
             @RequestParam(required = false) @NotNull @NotEmpty String password
     ) throws IOException {
-        var certificatePath = this.fileUtils.uploadBytes(certificateFile, FileLocationEnum.UPLOAD);
+        var certificatePath = this.fileUtils.uploadBytes(certificate, FileLocationEnum.UPLOAD);
 
         try {
-            var certificate = new CustomCertificate(certificatePath, password);
-            certificate.checkValidity();
+            var customCertificate = new CustomCertificate(certificatePath, password);
+            customCertificate.checkValidity();
             return ResponseEntity.ok("Valid certificate");
         } catch (Exception e) {
             return ResponseEntity.ok("Invalid certificate");
