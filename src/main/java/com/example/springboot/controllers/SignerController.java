@@ -9,7 +9,6 @@ import org.demoiselle.signer.core.exception.CertificateValidatorException;
 import org.demoiselle.signer.policy.impl.cades.SignatureInformations;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -39,7 +38,7 @@ public class SignerController {
         @RequestParam(required = false) @NotNull MultipartFile file,
         @RequestParam(required = false) @NotNull MultipartFile certificate,
         @RequestParam(required = false) @NotNull @NotEmpty String password,
-        @RequestParam(required = false) @NotNull @NotEmpty String url,
+        @RequestParam(required = false) String url,
         @RequestParam(required = false) Integer pageIndex,
         @RequestParam(required = false) Integer x,
         @RequestParam(required = false) Integer y
@@ -52,8 +51,7 @@ public class SignerController {
             if( pageIndex != null && x != null && y != null) {
                 var vsc = new VisualSignatureConfig(pageIndex, x, y);
                 this.signerService.setVisualSignatureConfig(vsc);
-            }
-            else{
+            } else {
                 this.signerService.setVisualSignatureConfig(null);
             }
 
@@ -152,8 +150,7 @@ public class SignerController {
         if(Objects.equals(format, "application/validador-iti json"))
         {
             return ResponseEntity.ok("{\"url\": \"" + url + "\"}");
-        }
-        else{
+        } else {
             var redirectUrl = new URI("https://validar.iti.gov.br/");
             HttpHeaders httpHeaders = new HttpHeaders();
             httpHeaders.setLocation(redirectUrl);
