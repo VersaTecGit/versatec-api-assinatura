@@ -384,8 +384,8 @@ public class SignatureService {
             widget.setRectangle(rectanglePosition);
 
             var boundingBox = new PDRectangle(rectanglePosition.getWidth(), rectanglePosition.getHeight());
-            var initialScale = PDFUtils.getInitialScaleRotation(oldPage, boundingBox);
             var pageRotation = oldPage.getRotation();
+            var initialScale = PDFUtils.getInitialScaleRotation(boundingBox, pageRotation);
             var form = PDFUtils.setFormXObject(doc, pageRotation);
             form.setBBox(boundingBox);
 
