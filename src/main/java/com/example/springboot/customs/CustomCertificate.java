@@ -13,6 +13,7 @@ import java.security.cert.X509Certificate;
 import java.util.Date;
 
 public class CustomCertificate {
+
     public String password;
     public KeyStore keyStore;
     public Certificate certificate;
@@ -60,24 +61,45 @@ public class CustomCertificate {
         }
     }
 
+    /**
+     * Verifica se o certificado é válido.
+     *
+     * @throws CertificateException se o certificado n o for válido
+     */
     public void checkValidity() throws CertificateException
     {
         X509Certificate certificate = (X509Certificate) this.certificate;
         certificate.checkValidity(new Date());
     }
 
+
+    /**
+     * Retorna o identificador do certificado (CPF/CNPJ).
+     *
+     * @return identificador
+     */
     public String getIdentifier()
     {
         var name = this.getX500Principal().getName();
         return name.split(":")[1].split(",")[0];
     }
 
+    /**
+     * Retorna o nome do certificado/nome do proprietário.
+     *
+     * @return nome
+     */
     public String getCertificateName()
     {
         var name = this.getX500Principal().getName();
         return name.split(":")[0].replace("CN=", "");
     }
 
+    /**
+     * Converte o certificado em um objeto X500Principal.
+     *
+     * @return certificado X500Principal
+     */
     private X500Principal getX500Principal()
     {
         return ((X509Certificate) (this.certificate)).getSubjectX500Principal();

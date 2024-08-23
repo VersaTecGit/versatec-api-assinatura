@@ -56,8 +56,8 @@ public class SignatureService {
     /**
      * Assina um documento a partir de um arquivo e de um par de chaves.
      *
-     * @param filePath o nome do arquivo a ser assinado
-     * @param customCertificate                   especialização do certificado, contendo informações necessárias
+     * @param filePath          o nome do arquivo a ser assinado
+     * @param customCertificate especialização do certificado, contendo informações necessárias
      *
      * @return o documento assinado
      * @throws IOException               se houver um erro ao ler o arquivo
@@ -80,7 +80,8 @@ public class SignatureService {
     /**
      * Retorna um objeto PKCS7Signer a partir de um certificado.
      *
-     * @param customCertificate                   especialização do certificado, contendo informações necessárias
+     * @param customCertificate especialização do certificado, contendo informações necessárias
+     *
      * @return um objeto PKCS7Signer pronto para assinar um documento
      * @throws KeyStoreException         se o tipo de KeyStore não é suportado
      * @throws UnrecoverableKeyException se a chave privada não puder ser recuperada
@@ -98,10 +99,11 @@ public class SignatureService {
      * Cria um novo PDF a partir de um documento assinado e adiciona a assinatura
      * visual.
      *
-     * @param filePath       o nome do arquivo original
-     * @param signedDocument o documento assinado
-     * @param customCertificate    especialização do certificado, contendo informações necessárias
-     * @param url            a URL da assinatura visual
+     * @param filePath          o nome do arquivo original
+     * @param signedDocument    o documento assinado
+     * @param customCertificate especialização do certificado, contendo informações necessárias
+     * @param url               a URL do documento
+     *
      * @return o novo PDF assinado com a assinatura visual
      * @throws IOException se houver um erro ao ler ou escrever o arquivo
      */
@@ -150,6 +152,13 @@ public class SignatureService {
         return signature;
     }
 
+    /**
+     * Retorna um objeto SignatureOptions com as opções de assinatura.
+     *
+     * @param signatureSize o tamanho da assinatura em bytes
+     *
+     * @return um objeto SignatureOptions pronto para ser adicionado ao documento
+     */
     private SignatureOptions getSignatureOptions(int signatureSize) {
         var signatureOptions = new SignatureOptions();
         signatureOptions.setPreferredSignatureSize(signatureSize);
@@ -158,13 +167,14 @@ public class SignatureService {
     }
 
     /**
-     * Adiciona a configuração de assinatura visual no {@link PDSignature}.
+     * Adiciona a configuração de assinatura visual na {@link SignatureOptions}.
      *
-     * @param signature        a assinatura a ser adicionada ao documento
-     * @param signatureOptions as opções de assinatura
-     * @param originalDocument o documento original
-     * @param customCertificate      especialização do certificado, contendo informações necessárias
-     * @param url              a URL da assinatura visual
+     * @param signature         a assinatura a ser adicionada ao documento
+     * @param signatureOptions  as opções de assinatura a serem configuradas
+     * @param originalDocument  o documento original
+     * @param customCertificate especialização do certificado, contendo informações necessárias
+     * @param url               a URL do documento
+     *
      * @throws IOException se houver um erro ao ler ou escrever o arquivo
      */
     private void setVisualSignature(
@@ -218,10 +228,11 @@ public class SignatureService {
      * <p>
      * O índice é baseado em zero, ou seja, a primeira página possui índice 0.
      * Para automaticamente selecionar a ultíma página pode ser passado o
-     * valor -1 na Configuração de assinatura
+     * valor −1 na Configuração de assinatura
      * Se o índice for inválido ou for maior que o número de páginas, a última página será usada.
      *
      * @param pageCount o número total de páginas no documento
+     *
      * @return o índice da página onde a assinatura visual será adicionada
      */
     private int getPageIndex(VisualSignatureConfig visualSignatureConfig, int pageCount) {
@@ -285,13 +296,14 @@ public class SignatureService {
      * Exemplo: "documento.pdf" vira "documento_assinado.pdf"
      *
      * @param fileName o nome do arquivo a ser assinado
+     *
      * @return o nome do arquivo com "_assinado" acrescentado
      */
     private String addSignatureName(String fileName) {
-        var indicePonto = fileName.lastIndexOf('.');
-        if (indicePonto != -1) {
-            var name = fileName.substring(0, indicePonto);
-            var extension = fileName.substring(indicePonto);
+        var dotIndex = fileName.lastIndexOf('.');
+        if (dotIndex != -1) {
+            var name = fileName.substring(0, dotIndex);
+            var extension = fileName.substring(dotIndex);
 
             return name + "_assinado" + extension;
         }
@@ -304,7 +316,8 @@ public class SignatureService {
      * As coordenadas começam da parte inferior esquerda da página.
      *
      * @param page           a página a ser assinada
-     * @param humanRectangle o retângulo que representa a área onde a assinatura deve ser desenhada
+     * @param humanRectangle o retângulo em formato amigável que representa a área onde a assinatura deve ser desenhada
+     *
      * @return o retângulo que representa a área onde a assinatura será desenhada
      */
     private PDRectangle createSignatureRectangle(PDPage page, Rectangle2D humanRectangle) {
@@ -315,8 +328,6 @@ public class SignatureService {
         var cropBox = page.getCropBox();
         var rectangle = new PDRectangle();
 
-        // Signature image should be at the same position regardless of page rotation.
-        // Coordinates start from bottom left.
         switch (page.getRotation()) {
             case 90:
                 rectangle.setLowerLeftX(cropBox.getWidth() - y - height);
@@ -349,13 +360,13 @@ public class SignatureService {
     }
 
     /**
-     * Cria um template de assinatura visual para os parâmetros dados.
+     * Incluir as configurações do pdf, a forma que a assinatura visual deve ser posicionada
      *
      * @param oldPage           a página de origem
-     * @param humanRectangle    o retângulo
+     * @param humanRectangle    o posicionamento
      * @param signatureContent  o conteúdo da assinatura
      *
-     * @return um fluxo de entrada com o template de assinatura visual
+     * @return um fluxo de entrada com o modelo de assinatura visual
      * @throws IOException se ocorrer um erro de I/O
      */
     private InputStream includeVisualSignature(
@@ -372,11 +383,11 @@ public class SignatureService {
             var widget = PDFUtils.setAcroForm(doc);
             widget.setRectangle(rectanglePosition);
 
-            var bbox = new PDRectangle(rectanglePosition.getWidth(), rectanglePosition.getHeight());
-            var initialScale = PDFUtils.getInitialScaleRotation(oldPage, bbox);
+            var boundingBox = new PDRectangle(rectanglePosition.getWidth(), rectanglePosition.getHeight());
+            var initialScale = PDFUtils.getInitialScaleRotation(oldPage, boundingBox);
             var pageRotation = oldPage.getRotation();
             var form = PDFUtils.setFormXObject(doc, pageRotation);
-            form.setBBox(bbox);
+            form.setBBox(boundingBox);
 
             var appearanceStream = PDFUtils.createAppearanceDictionary(form, widget);
 
@@ -387,11 +398,11 @@ public class SignatureService {
 
                 contentStream.saveGraphicsState();
 
-                float imageWidth = bbox.getWidth();
-                float imageHeight = bbox.getHeight();
+                float imageWidth = boundingBox.getWidth();
+                float imageHeight = boundingBox.getHeight();
                 if (pageRotation == 90 || pageRotation == 270) {
-                    imageWidth = bbox.getHeight();
-                    imageHeight = bbox.getWidth();
+                    imageWidth = boundingBox.getHeight();
+                    imageHeight = boundingBox.getWidth();
                 }
 
                 var imageObject = PDImageXObject.createFromByteArray(doc, signatureContent, "signature.jpg");

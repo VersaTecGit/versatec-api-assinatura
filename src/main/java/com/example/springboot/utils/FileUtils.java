@@ -67,6 +67,14 @@ public class FileUtils {
         return uuid.toString();
     }
 
+    /**
+     * Retorna o caminho completo para um arquivo com base na localização informada.
+     *
+     * @param fileName o nome do arquivo
+     * @param location a localização do arquivo
+     *
+     * @return o caminho completo e normalizado para o arquivo
+     */
     public Path getFilePath(String fileName, FileLocationEnum location)
     {
         Path path = switch (location) {

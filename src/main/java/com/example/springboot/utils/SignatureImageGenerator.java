@@ -39,6 +39,18 @@ public class SignatureImageGenerator {
         this.appConfig = appConfig;
     }
 
+    /**
+     * Gera a assinatura padrão com o nome, CPF/CNPJ e data e inclui o qr code da url caso necessário
+     *
+     * @param name          nome da pessoa
+     * @param identifier    CPF/CNPJ da pessoa
+     * @param date          data da assinatura
+     * @param url           url para a página de verificação
+     * @param hasQrCode     se a imagem deve ter um qrcode
+     *
+     * @return imagem da assinatura em bytes
+     * @throws Exception se houver um erro ao gerar a assinatura
+     */
     public byte[] getDefaultSignature(String name, String identifier, Date date, String url, Boolean hasQrCode) throws Exception {
         //Configura a imagem e a margem para o texto central
         var imageName = WITHOUT_QR_BACKGROUND;
@@ -48,7 +60,7 @@ public class SignatureImageGenerator {
             marginLeft = (float) (HEIGHT * 0.95);
         }
 
-        //Lê a imagem e cria o graphics2d para escrita
+        //L  a imagem e cria o graphics2d para escrita
         var background = fileUtils.getFile(imageName, FileLocationEnum.ASSET);
         var image = ImageIO.read(background);
         var graphics2D = image.createGraphics();
@@ -84,6 +96,14 @@ public class SignatureImageGenerator {
         return byteArrayOutputStream.toByteArray();
     }
 
+    /**
+     * Comandos necessários para inclusão do qr code na assinatura padrão
+     *
+     * @param graphics2D    graphics2d para escrita
+     * @param url           url para a página de verificação
+     *
+     * @throws Exception se houver um erro ao incluir o qr code
+     */
     private void includeQrCode(Graphics2D graphics2D, String url) throws Exception {
         var qr = generateQrcode(appConfig.getUrl() + "/api/v1/qr-code&url=" + url);
         graphics2D.drawImage(qr, (int) (SPACING * 1.5), (int) (SPACING * 1.5), QR_SIDE, QR_SIDE, null);
@@ -91,6 +111,14 @@ public class SignatureImageGenerator {
         graphics2D.drawString(VERIFICATION_CODE_TEXT, (float) (SPACING * 1.5), (float) (SPACING * 37.5));
     }
 
+    /**
+     * Divide um texto em linhas com base em um tamanho de linha desejado.
+     *
+     * @param text          texto a ser dividido
+     * @param lineLength    tamanho da linha desejado
+     *
+     * @return lista de linhas do texto
+     */
     private ArrayList<String> getLines(String text, int lineLength)
     {
         var words = text.split(" ");

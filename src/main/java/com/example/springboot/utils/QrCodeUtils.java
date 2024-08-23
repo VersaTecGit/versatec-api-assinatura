@@ -8,10 +8,12 @@ import java.io.ByteArrayOutputStream;
 import java.util.Objects;
 
 public class QrCodeUtils {
+
     /**
      * Gera uma imagem de código QR com base no texto fornecido.
      *
      * @param barcodeText O texto a ser codificado no código QR.
+     *
      * @return Uma imagem {@link BufferedImage} representando o código QR gerado.
      * @throws Exception Caso ocorra um erro ao gerar o código QR.
      */
