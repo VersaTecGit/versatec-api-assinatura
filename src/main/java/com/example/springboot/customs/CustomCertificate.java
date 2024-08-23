@@ -14,11 +14,11 @@ import java.util.Date;
 
 public class CustomCertificate {
 
-    public String password;
-    public KeyStore keyStore;
-    public Certificate certificate;
-    public Certificate[] certificateChain;
-    public String alias;
+    public final String password;
+    public final KeyStore keyStore;
+    public final Certificate certificate;
+    public final Certificate[] certificateChain;
+    public final String alias;
 
     public CustomCertificate(Path path, String password)
             throws WrongCertificatePasswordException,

@@ -85,7 +85,11 @@ public class SignatureService {
      * @throws UnrecoverableKeyException se a chave privada não puder ser recuperada
      * @throws NoSuchAlgorithmException  se o algoritmo de hash não é suportado
      */
-    private PKCS7Signer getPKCS7Signer(CustomCertificate customCertificate) throws KeyStoreException, UnrecoverableKeyException, NoSuchAlgorithmException {
+    private PKCS7Signer getPKCS7Signer(CustomCertificate customCertificate)
+            throws KeyStoreException,
+            UnrecoverableKeyException,
+            NoSuchAlgorithmException
+    {
         var signer = PKCS7Factory.getInstance().factoryDefault();
         signer.setCertificates(customCertificate.certificateChain);
         signer.setPrivateKey((PrivateKey) customCertificate.keyStore.getKey(customCertificate.alias, customCertificate.password.toCharArray()));
@@ -415,7 +419,12 @@ public class SignatureService {
         }
     }
 
-    public List<SignatureInformations> validateAllSignatures(Path filePath) throws IOException, ParseException, CMSException, CertificateException {
+    public List<SignatureInformations> validateAllSignatures(Path filePath)
+            throws IOException,
+            ParseException,
+            CMSException,
+            CertificateException
+    {
         var results = new ArrayList<SignatureInformations>();
 
         try (PDDocument document = PDDocument.load(filePath.toFile())) {
