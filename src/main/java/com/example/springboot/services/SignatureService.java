@@ -8,7 +8,6 @@ import com.example.springboot.customs.VisualSignatureConfig;
 import com.example.springboot.utils.FileUtils;
 import com.example.springboot.utils.PDFUtils;
 import org.apache.pdfbox.cos.COSBase;
-import org.apache.pdfbox.cos.COSDictionary;
 import org.apache.pdfbox.cos.COSName;
 import org.apache.pdfbox.cos.COSString;
 import org.apache.pdfbox.io.IOUtils;
@@ -20,11 +19,9 @@ import org.apache.pdfbox.pdmodel.interactive.digitalsignature.SignatureOptions;
 import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cms.CMSException;
 import org.bouncycastle.cms.CMSSignedData;
-import org.bouncycastle.cms.SignerInformation;
 import org.demoiselle.signer.core.extension.BasicCertificate;
 import org.demoiselle.signer.core.repository.ConfigurationRepo;
 import org.demoiselle.signer.policy.impl.cades.SignatureInformations;
-import org.demoiselle.signer.policy.impl.cades.SignerException;
 import org.demoiselle.signer.policy.impl.cades.factory.PKCS7Factory;
 import org.demoiselle.signer.policy.impl.cades.pkcs7.PKCS7Signer;
 import org.demoiselle.signer.policy.impl.pades.pkcs7.impl.PAdESChecker;
@@ -417,89 +414,72 @@ public class SignatureService {
     }
 
     public List<SignatureInformations> validateAllSignatures(Path filePath) throws IOException, ParseException, CMSException, CertificateException {
-        List<SignatureInformations> results = new ArrayList<>();
-        List<X509Certificate> chains = new ArrayList<X509Certificate>();
-        PDDocument document;
+        var results = new ArrayList<SignatureInformations>();
 
-        document = PDDocument.load(new File(filePath.toString()));
-        List<SignatureInformations> result = null;
+        try (PDDocument document = PDDocument.load(filePath.toFile())) {
+            for (var sig : document.getSignatureDictionaries()) {
+                var sigDict = sig.getCOSObject();
 
-        int rangeMax = 0;
-        int fileLen = 0;
-        for (PDSignature sig : document.getSignatureDictionaries()) {
-            COSDictionary sigDict = sig.getCOSObject();
-            COSString contents = (COSString) sigDict.getDictionaryObject(COSName.CONTENTS);
-
-            Date signingTime = this.extractDateOfDictM(sigDict.getDictionaryObject(COSName.M));
-
-            byte[] buf = null;
-
-            try (FileInputStream fis = new FileInputStream(filePath.toString())) {
-                buf = sig.getSignedContent(fis);
-            }
-
-            ConfigurationRepo configlcr = ConfigurationRepo.getInstance();
-            configlcr.setOnline(false);
-
-            PAdESChecker checker = new PAdESChecker();
-            byte[] documentSignature = contents.getBytes();
-
-//            File fileP7S = this.createFileP7S(filePath, documentSignature);
-
-            try {
-                result = checker.checkDetachedSignature(buf, documentSignature);
-                checker.getSignaturesInfo().get(0).setSignDate(signingTime);
-                int[] byteRange = sig.getByteRange();
-                rangeMax = (byteRange[byteRange.length - 2] + byteRange[byteRange.length - 1]);
-                fileLen = (int) new File(filePath.toString()).length();
-
-                if (result == null || result.isEmpty()) {
-                    System.err.println("Erro ao validar");
-                }
-                results.addAll(checker.getSignaturesInfo());
-            } catch (SignerException e) {
-                CMSSignedData signature = new CMSSignedData(documentSignature);
-
-                SignerInformation signerInfo = signature.getSignerInfos().getSigners().iterator().next();
-                Collection<X509CertificateHolder> certificateChain = signature.getCertificates().getMatches(signerInfo.getSID());
-
-                CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-                List<X509Certificate> certificates = new ArrayList<>();
-                for (X509CertificateHolder certHolder : certificateChain) {
-                    X509Certificate cert = (X509Certificate) certFactory.generateCertificate(new ByteArrayInputStream(certHolder.getEncoded()));
-                    certificates.add(cert);
+                byte[] buf;
+                try (var fis = new FileInputStream(filePath.toFile())) {
+                    buf = sig.getSignedContent(fis);
                 }
 
-                SignatureInformations resul = new SignatureInformations();
-                BasicCertificate icpBrasilcertificate = new BasicCertificate(certificates.get(0));
-                resul.setIcpBrasilcertificate(icpBrasilcertificate);
-                String err = e.getMessage();
-                LinkedList<String> erro = new LinkedList<String>();
-                erro.add(err);
-                resul.setValidatorErrors(erro);
-                resul.setInvalidSignature(true);
-                resul.setSignDate(signingTime);
-                results.add(resul);
-                chains.add(certificates.get(0));
+                var configurationRepoInstance = ConfigurationRepo.getInstance();
+                configurationRepoInstance.setOnline(false);
+
+                var contents = (COSString) sigDict.getDictionaryObject(COSName.CONTENTS);
+
+                var documentSignature = contents.getBytes();
+                var checker = new PAdESChecker();
+                var signingTime = extractDateOfDictM(sigDict.getDictionaryObject(COSName.M));
+                try {
+                    var result = checker.checkDetachedSignature(buf, documentSignature);
+                    if (result != null && !result.isEmpty()) {
+                        checker.getSignaturesInfo().get(0).setSignDate(signingTime);
+                        results.addAll(checker.getSignaturesInfo());
+                    } else {
+                        System.err.println("Signature validation failed: no result.");
+                    }
+                } catch (Exception e) {
+                    var signature = new CMSSignedData(documentSignature);
+                    var signerInfo = signature.getSignerInfos().getSigners().iterator().next();
+                    Collection<X509CertificateHolder> certificateChain = signature.getCertificates().getMatches(signerInfo.getSID());
+
+                    var certFactory = CertificateFactory.getInstance("X.509");
+                    var certificates = new ArrayList<X509Certificate>();
+                    for (X509CertificateHolder certHolder : certificateChain) {
+                        var cert = (X509Certificate) certFactory.generateCertificate(new ByteArrayInputStream(certHolder.getEncoded()));
+                        certificates.add(cert);
+                    }
+
+                    var result = new SignatureInformations();
+                    var basicCertificate = new BasicCertificate(certificates.get(0));
+                    result.setIcpBrasilcertificate(basicCertificate);
+                    result.setValidatorErrors(new LinkedList<>(List.of(e.getMessage())));
+                    result.setInvalidSignature(true);
+                    result.setSignDate(signingTime);
+                    results.add(result);
+                }
+
+                var byteRange = sig.getByteRange();
+                var rangeMax = byteRange[byteRange.length - 2] + byteRange[byteRange.length - 1];
+                var fileLen = (int) filePath.toFile().length();
+                if (fileLen > rangeMax) {
+                    System.err.println("Error! Incremental modification detected.");
+                }
             }
-        }
-
-        document.close();
-
-        if (fileLen > rangeMax) {
-            System.err.println("Erro! Foi identificado uma modificação incremental");
         }
 
         return results;
     }
 
     private Date extractDateOfDictM(COSBase cosNameM) throws ParseException {
-        String dateString = cosNameM.toString();
+        var dateString = cosNameM.toString();
         dateString = dateString.replaceAll("^COSString\\{D:|\\}$", "");
-        String gmt = "-" + dateString.split("-")[1].split("'")[0] + "00";
+        var gmt = "-" + dateString.split("-")[1].split("'")[0] + "00";
         dateString = dateString.replaceFirst("-\\d{2}'\\d{2}'", gmt);
-        SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmssZ");
-        Date date = formatter.parse(dateString);
-        return date;
+        var formatter = new SimpleDateFormat("yyyyMMddHHmmssZ");
+        return formatter.parse(dateString);
     }
 }
