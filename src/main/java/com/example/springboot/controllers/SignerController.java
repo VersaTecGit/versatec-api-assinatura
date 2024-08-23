@@ -6,6 +6,8 @@ import com.example.springboot.customs.CustomCertificate;
 import com.example.springboot.customs.VisualSignatureConfig;
 import com.example.springboot.services.SignatureService;
 import com.example.springboot.utils.FileUtils;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.demoiselle.signer.core.exception.CertificateValidatorException;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -32,10 +34,12 @@ public class SignerController {
 
     public final SignatureService signatureService;
     public final FileUtils fileUtils;
+    public final ObjectMapper objectMapper;
 
-    public SignerController(SignatureService signatureService, FileUtils fileUtils) {
+    public SignerController(SignatureService signatureService, FileUtils fileUtils, ObjectMapper objectMapper) {
         this.signatureService = signatureService;
         this.fileUtils = fileUtils;
+        this.objectMapper = objectMapper;
     }
 
     @PostMapping("/sign")
@@ -49,7 +53,7 @@ public class SignerController {
             @RequestParam(required = false) Integer y
     ) throws IOException {
         var filePath = this.fileUtils.uploadFile(file, FileLocationEnum.UPLOAD);
-        var certificatePath = this.fileUtils.uploadBytes(certificate, FileLocationEnum.UPLOAD);
+        var certificatePath = this.fileUtils.uploadFile(certificate, FileLocationEnum.UPLOAD);
         Path outputPath = null;
 
         try {
@@ -111,12 +115,14 @@ public class SignerController {
             @RequestParam(required = false) @NotNull MultipartFile certificate,
             @RequestParam(required = false) @NotNull @NotEmpty String password
     ) throws IOException {
-        var certificatePath = this.fileUtils.uploadBytes(certificate, FileLocationEnum.UPLOAD);
+        var certificatePath = this.fileUtils.uploadFile(certificate, FileLocationEnum.UPLOAD);
 
         try {
             var customCertificate = new CustomCertificate(certificatePath, password);
             customCertificate.checkValidity();
             return ResponseEntity.ok("Valid certificate");
+        } catch (WrongCertificatePasswordException e) {
+            return ResponseEntity.status(401).body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.ok("Invalid certificate");
         } finally {
@@ -128,10 +134,14 @@ public class SignerController {
     public ResponseEntity<String> qrCode(
             @RequestParam(value = "_format", required = false) String format,
             @RequestParam(value = "_secretCode", required = false) String secretCode,
-            @RequestParam(required = false) @NotNull @NotEmpty String url
-    ) throws URISyntaxException {
+            @RequestParam(value = "url", required = false) @NotNull @NotEmpty String returnUrl
+    ) throws URISyntaxException, JsonProcessingException {
         if (Objects.equals(format, "application/validador-iti json")) {
-            return ResponseEntity.ok("{\"url\": \"" + url + "\"}");
+            var result = new Object(){
+                final String url = returnUrl;
+            };
+            String json = this.objectMapper.writeValueAsString(result);
+            return ResponseEntity.ok(json);
         } else {
             var redirectUrl = new URI("https://validar.iti.gov.br/");
             HttpHeaders httpHeaders = new HttpHeaders();

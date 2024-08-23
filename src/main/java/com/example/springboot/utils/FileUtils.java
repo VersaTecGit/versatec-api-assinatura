@@ -29,12 +29,8 @@ public class FileUtils {
     }
 
     public File getFile(String fileName, FileLocationEnum location) {
-        Path fileLocation = this.getFilePath(fileName, location);
-        return new File(fileLocation.toString());
-    }
-
-    public File getFile(Path filePath) {
-        return new File(filePath.toString());
+        Path filePath = this.getFilePath(fileName, location);
+        return filePath.toFile();
     }
 
     public Path uploadFile(MultipartFile file, FileLocationEnum location) throws IOException {
