@@ -194,18 +194,8 @@ public class SignatureService {
         var signaturePage = pages.get(pageIndex);
 
         //Gera a imagem da assinatura
-        byte[] signatureContent;
-        var name = customCertificate.getCertificateName();
-        var identifier = customCertificate.getIdentifier();
-        var date = signature.getSignDate().getTime();
-        var widthSignature = 0;
-        if (url != null && !url.trim().isEmpty()) {
-            signatureContent = this.signatureImageGenerator.getDefaultSignature(name, identifier, date, url, true);
-            widthSignature = this.signatureImageGenerator.WITH_QR_WIDTH/10;
-        } else {
-            signatureContent = this.signatureImageGenerator.getDefaultSignature(name, identifier, date, null, false);
-            widthSignature = this.signatureImageGenerator.WITHOUT_QR_WIDTH/10;
-        }
+        var signatureContent = generateSignatureContent(customCertificate, signature, url);
+        var widthSignature = getSignatureWidth(url);
 
         //Configura a posição e tamanho da assinatura
         var humanRectangle = getSignatureHumanRectangle(
@@ -224,6 +214,37 @@ public class SignatureService {
         // Configura a página a ser assinada
         signatureOptions.setPage(pageIndex);
         signatureOptions.setVisualSignature(inputStream);
+    }
+
+    /**
+     * Retorna a imagem correta de assinatura
+     *
+     * @param signature         a assinatura a ser adicionada ao documento
+     * @param customCertificate especialização do certificado, contendo informações necessárias
+     * @param url               a URL do documento
+     *
+     * @throws IOException se houver um erro ao ler ou escrever o arquivo
+     */
+    private byte[] generateSignatureContent(CustomCertificate customCertificate, PDSignature signature, String url) throws Exception {
+        var name = customCertificate.getCertificateName();
+        var identifier = customCertificate.getIdentifier();
+        var date = signature.getSignDate().getTime();
+        if (url != null && !url.trim().isEmpty()) {
+            return this.signatureImageGenerator.getDefaultSignature(name, identifier, date, url, true);
+        } else {
+            return this.signatureImageGenerator.getDefaultSignature(name, identifier, date, null, false);
+        }
+    }
+
+    /**
+     * Retorna a largura correta da imagem
+     *
+     * @param url a URL do documento
+     */
+    private int getSignatureWidth(String url) {
+        return (url != null && !url.trim().isEmpty())
+                ? this.signatureImageGenerator.WITH_QR_WIDTH / 10
+                : this.signatureImageGenerator.WITHOUT_QR_WIDTH / 10;
     }
 
     /**
@@ -287,7 +308,7 @@ public class SignatureService {
 
         //Retorna a posição padrão centralizada, e com margem ABNT
         return new Rectangle2D.Float(
-            (pageWidth - (signatureWidth)) / 2,
+            (pageWidth - signatureWidth) / 2,
             (float) (((16) * 72) / 25.4), //Margem de 16mm convertido para points (No mundo real 2cm)
             signatureWidth,
             signatureHeight
