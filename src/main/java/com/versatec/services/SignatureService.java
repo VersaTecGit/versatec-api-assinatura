@@ -85,7 +85,7 @@ public class SignatureService {
      * @throws UnrecoverableKeyException se a chave privada não puder ser recuperada
      * @throws NoSuchAlgorithmException  se o algoritmo de hash não é suportado
      */
-    private PKCS7Signer getPKCS7Signer(CustomCertificate customCertificate)
+    PKCS7Signer getPKCS7Signer(CustomCertificate customCertificate)
             throws KeyStoreException,
             UnrecoverableKeyException,
             NoSuchAlgorithmException
@@ -119,7 +119,7 @@ public class SignatureService {
         var originalFile = filePath.toFile();
         var originalDocument = PDDocument.load(originalFile);
 
-        var signedFileName = this.addSignatureName(originalFile.getName());
+        var signedFileName = SignatureService.addSignatureName(originalFile.getName());
         var downloadPath = fileUtils.getFilePath(signedFileName, FileLocationEnum.DOWNLOAD);
         var output = new FileOutputStream(downloadPath.toString());
 
@@ -323,7 +323,7 @@ public class SignatureService {
      *
      * @return o nome do arquivo com "_assinado" acrescentado
      */
-    private String addSignatureName(String fileName) {
+     static String addSignatureName(String fileName) {
         var dotIndex = fileName.lastIndexOf('.');
         if (dotIndex != -1) {
             var name = fileName.substring(0, dotIndex);
@@ -466,7 +466,7 @@ public class SignatureService {
                 var documentSignature = getDocumentSignature(cosDictionary);
 
                 var signingTime = extractDateOfDictM(cosDictionary.getDictionaryObject(COSName.M));
-                var checker = new CAdESChecker();
+                var checker = getCAdESChecker();
 
                 try {
                     processSignature(documentSignature, checker, signingTime, results);
@@ -479,6 +479,11 @@ public class SignatureService {
         }
 
         return results;
+    }
+    
+    CAdESChecker getCAdESChecker()
+    {
+        return new CAdESChecker();
     }
 
     /**
@@ -505,7 +510,7 @@ public class SignatureService {
      *
      * @return o conteúdo da assinatura como um array de bytes
      */
-    private byte[] getDocumentSignature(COSDictionary cosDictionary) {
+    byte[] getDocumentSignature(COSDictionary cosDictionary) {
         var contents = (COSString) cosDictionary.getDictionaryObject(COSName.CONTENTS);
         return contents.getBytes();
     }
