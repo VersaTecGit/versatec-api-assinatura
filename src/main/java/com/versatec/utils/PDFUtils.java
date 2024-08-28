@@ -102,7 +102,7 @@ public class PDFUtils {
 
     /**
      * Retorna a matriz de transformação de escala e rotação para a página.
-     * A escala é calculada com base na rota o da página e no tamanho do retângulo delimitador.
+     * A escala é calculada com base na rotação da página e no tamanho do retângulo delimitador.
      * Se a rotação da página for 90 ou 270 graus, a escala é adaptada.
      *
      * @param boundingBox    o retângulo delimitador

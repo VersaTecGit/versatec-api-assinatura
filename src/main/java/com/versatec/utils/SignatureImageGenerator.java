@@ -53,14 +53,10 @@ public class SignatureImageGenerator {
      */
     public byte[] getDefaultSignature(String name, String identifier, Date date, String url, Boolean hasQrCode) throws Exception {
         //Configura a imagem e a margem para o texto central
-        var imageName = WITHOUT_QR_BACKGROUND;
-        var marginLeft = (float) (HEIGHT * 0.05);
-        if(hasQrCode){
-            imageName = WITH_QR_BACKGROUND;
-            marginLeft = (float) (HEIGHT * 0.95);
-        }
+        String imageName = hasQrCode ? WITH_QR_BACKGROUND : WITHOUT_QR_BACKGROUND;
+        float marginLeft = hasQrCode ? (float) (HEIGHT * 0.95) : (float) (HEIGHT * 0.05);
 
-        //L  a imagem e cria o graphics2d para escrita
+        //Lê a imagem e cria o graphics2d para escrita
         var background = fileUtils.getFile(imageName, FileLocationEnum.ASSET);
         var image = ImageIO.read(background);
         var graphics2D = image.createGraphics();
@@ -69,20 +65,20 @@ public class SignatureImageGenerator {
             //Cor da fonte
             graphics2D.setColor(Color.BLACK);
 
-            if(hasQrCode) {
-                includeQrCode(graphics2D, url);
+            if (hasQrCode) {
+                this.includeQrCode(graphics2D, url);
             }
 
             //Escreve texto, cpf e data
             graphics2D.setFont(new Font(FONT_TYPE, Font.PLAIN, FONT_SIZE));
-            graphics2D.drawString(DOC_DIGITAL_SIGNED_TEXT, marginLeft, (float)(SPACING * 3.5));
-            graphics2D.drawString(formatCpfOrCnpj(identifier), marginLeft, (SPACING * 27));
-            graphics2D.drawString(formatDate(date), marginLeft, (float) (SPACING * 34.9));
+            graphics2D.drawString(DOC_DIGITAL_SIGNED_TEXT, marginLeft, (float) (SPACING * 3.5));
+            graphics2D.drawString(FormatterUtils.formatCpfOrCnpj(identifier), marginLeft, (SPACING * 27));
+            graphics2D.drawString(FormatterUtils.formatDate(date), marginLeft, (float) (SPACING * 34.9));
 
             //Escreve as linhas do nome
             graphics2D.setFont(new Font(FONT_TYPE, Font.BOLD, FONT_SIZE));
-            var lines = getLines(name, 33);
-            var nextMarginTop = (SPACING*11);
+            var lines = this.getLines(name, 33);
+            var nextMarginTop = (SPACING * 11);
             for (String line : lines) {
                 graphics2D.drawString(line.trim(), marginLeft, nextMarginTop);
                 nextMarginTop += FONT_SIZE;
@@ -105,7 +101,7 @@ public class SignatureImageGenerator {
      * @throws Exception se houver um erro ao incluir o qr code
      */
     private void includeQrCode(Graphics2D graphics2D, String url) throws Exception {
-        var qr = generateQrcode(appConfig.getUrl() + "/api/v1/qr-code&url=" + url);
+        var qr = QrCodeUtils.generateQrcode(appConfig.getUrl() + "/api/v1/qr-code&url=" + url);
         graphics2D.drawImage(qr, (int) (SPACING * 1.5), (int) (SPACING * 1.5), QR_SIDE, QR_SIDE, null);
         graphics2D.setFont(new Font(FONT_TYPE, Font.BOLD, INFO_FONT_SIZE));
         graphics2D.drawString(VERIFICATION_CODE_TEXT, (float) (SPACING * 1.5), (float) (SPACING * 37.5));

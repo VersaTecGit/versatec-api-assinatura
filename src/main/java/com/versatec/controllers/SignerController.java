@@ -4,7 +4,9 @@ import com.versatec.customs.FileLocationEnum;
 import com.versatec.customs.WrongCertificatePasswordException;
 import com.versatec.customs.CustomCertificate;
 import com.versatec.customs.VisualSignatureConfig;
+import com.versatec.services.SignatureFileService;
 import com.versatec.services.SignatureService;
+import com.versatec.services.SignatureValidationService;
 import com.versatec.utils.FileUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -37,11 +39,21 @@ import java.util.*;
 public class SignerController {
 
     public final SignatureService signatureService;
+    public final SignatureFileService signatureFileService;
+    public final SignatureValidationService signatureValidationService;
     public final FileUtils fileUtils;
     public final ObjectMapper objectMapper;
 
-    public SignerController(SignatureService signatureService, FileUtils fileUtils, ObjectMapper objectMapper) {
+    public SignerController(
+            SignatureService signatureService,
+            SignatureFileService signatureFileService,
+            SignatureValidationService signatureValidationService,
+            FileUtils fileUtils,
+            ObjectMapper objectMapper
+    ) {
         this.signatureService = signatureService;
+        this.signatureFileService = signatureFileService;
+        this.signatureValidationService = signatureValidationService;
         this.fileUtils = fileUtils;
         this.objectMapper = objectMapper;
     }
@@ -91,15 +103,12 @@ public class SignerController {
         Path outputPath = null;
 
         try {
-            VisualSignatureConfig visualSignatureConfig = null;
-            if (pageIndex != null && x != null && y != null) {
-                visualSignatureConfig = new VisualSignatureConfig(pageIndex, x, y);
-            }
-
+            var visualSignatureConfig = new VisualSignatureConfig(pageIndex, x, y);
             var customCertificate = new CustomCertificate(certificatePath, password);
-            byte[] signedDocument = this.signatureService.signDocument(filePath, customCertificate);
 
-            outputPath = this.signatureService.createPDF(filePath, signedDocument, customCertificate, visualSignatureConfig, url);
+            byte[] signedDocument = this.signatureService.signDocument(filePath, customCertificate);
+            outputPath = this.signatureFileService.createPDF(filePath, signedDocument, customCertificate, visualSignatureConfig, url);
+
             var signedPdfData = Files.readAllBytes(outputPath);
 
             HttpHeaders headers = new HttpHeaders();
@@ -147,7 +156,7 @@ public class SignerController {
         var filePath = this.fileUtils.uploadFile(file, FileLocationEnum.UPLOAD);
 
         try {
-            List<SignatureInformations> results = this.signatureService.validateAllSignatures(filePath);
+            List<SignatureInformations> results = this.signatureValidationService.validateAllSignatures(filePath);
 
             if (!results.isEmpty()) {
                 return ResponseEntity.ok("Valid document");
