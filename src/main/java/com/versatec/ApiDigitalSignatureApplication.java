@@ -1,13 +1,13 @@
-package com.example.springboot;
+package com.versatec;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class SpringbootApplication {
+public class ApiDigitalSignatureApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(SpringbootApplication.class, args);
+        SpringApplication.run(ApiDigitalSignatureApplication.class, args);
     }
 
 }
