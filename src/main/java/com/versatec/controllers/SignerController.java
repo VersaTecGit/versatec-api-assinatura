@@ -133,7 +133,7 @@ public class SignerController {
         } catch (WrongCertificatePasswordException e) {
             return ResponseEntity.status(401).body(e.getMessage());
         } catch (Exception e) {
-            return ResponseEntity.ok("Invalid certificate");
+            return ResponseEntity.status(401).body("Invalid certificate");
         } finally {
             this.fileUtils.removeFile(certificatePath);
         }
