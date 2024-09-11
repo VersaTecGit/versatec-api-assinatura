@@ -63,7 +63,7 @@ public class SignerController {
             summary = "Assinar Documento",
             description = "Assina um documento com assinador CADES, e certificado A1. <br/>" +
                     "Caso seja enviada a URL onde o documento irá ser hospedado, inclui o QR CODE. <br/>" +
-                    "PageIndex, X, e Y, são parâmetros para customização da posição da assinatura visual",
+                    "PageIndex, X, e Y, são parâmetros opcionais para customização da posição da assinatura visual",
             responses = {
                     @ApiResponse(responseCode = "200", description = "Documento assinado com sucesso",
                             content = @Content(
@@ -137,7 +137,7 @@ public class SignerController {
             summary = "Validar assinatura",
             description = "Valida se todas as assinaturas de um documento são válidas",
             responses = {
-                    @ApiResponse(responseCode = "200", description = "Documento assinado com sucesso",
+                    @ApiResponse(responseCode = "200", description = "A assinatura é valida",
                             content = @Content(
                                     mediaType = "application/json",
                                     schema = @Schema(implementation = String.class)
@@ -175,7 +175,7 @@ public class SignerController {
             summary = "Validar certificado",
             description = "Valida se um certificado é valido",
             responses = {
-                    @ApiResponse(responseCode = "200", description = "Documento assinado com sucesso",
+                    @ApiResponse(responseCode = "200", description = "O certificado é valido",
                             content = @Content(
                                     mediaType = "application/json",
                                     schema = @Schema(implementation = String.class)
@@ -187,7 +187,7 @@ public class SignerController {
                                     schema = @Schema(implementation = String[].class)
                             )
                     ),
-                    @ApiResponse(responseCode = "401", description = "Senha do certificado é inválida",
+                    @ApiResponse(responseCode = "401", description = "A senha ou certificado é inválido",
                             content = @Content(
                                     mediaType = "application/json",
                                     schema = @Schema(implementation = String.class)
