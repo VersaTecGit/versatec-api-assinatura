@@ -1,8 +1,5 @@
 package com.versatec.services;
 
-import static org.mockito.Mockito.*;
-import static org.junit.jupiter.api.Assertions.*;
-
 import com.versatec.customs.CustomCertificate;
 import com.versatec.customs.FileLocationEnum;
 import com.versatec.customs.VisualSignatureConfig;
@@ -12,36 +9,38 @@ import com.versatec.utils.FileUtils;
 import com.versatec.utils.SignatureImageGenerator;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
-import org.demoiselle.signer.policy.impl.cades.SignatureInformations;
-import org.demoiselle.signer.policy.impl.cades.pkcs7.PKCS7Signer;
-import org.demoiselle.signer.policy.impl.cades.pkcs7.impl.CAdESChecker;
 import org.junit.jupiter.api.*;
-
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.*;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @ExtendWith(MockitoExtension.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-class SignatureServiceTest {
+class SignatureFileServiceTest {
 
     private FileUtils fileUtils;
 
     @InjectMocks
-    private SignatureService signatureService;
+    @Spy
+    private SignatureFileService signatureFileService;
 
     @Mock
     private CustomCertificate customCertificate;
 
     private Path BLANK_PDF;
+    private Path SIGNED_PDF;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -49,7 +48,8 @@ class SignatureServiceTest {
 
         this.fileUtils = new FileUtils(FileStoragePropertiesMock.create());
 
-        this.signatureService = spy(new SignatureService());
+        var signatureImageGenerator = new SignatureImageGenerator(fileUtils, AppPropertiesMock.create());
+        this.signatureFileService = spy(new SignatureFileService(signatureImageGenerator, fileUtils));
 
         var certificatePath =  fileUtils.getFilePath("testCert.pfx", FileLocationEnum.ASSET);
         customCertificate = new CustomCertificate(certificatePath, "123456");
@@ -62,28 +62,53 @@ class SignatureServiceTest {
             doc.addPage(new PDPage());
             doc.save(file);
         }
+
+        //Register signed Path
+        var signedFileName = SignatureFileService.addSignatureName(fileName);
+        SIGNED_PDF = this.fileUtils.getFilePath(signedFileName, FileLocationEnum.DOWNLOAD);
     }
 
     @Test
-    void testSignDocument_shouldReturnSignature() throws Exception {
+    void testCreatePDF_WithQRAndDefaultPosition_shouldReturnSignedPDF() throws Exception {
         // Arrange
-        var content = Files.readAllBytes(BLANK_PDF);
-
-        var mockSigner = mock(PKCS7Signer.class);
-        var mockReturn = "signed content".getBytes();
-        doReturn(mockSigner).when(signatureService).getPKCS7Signer(customCertificate);
-        when(mockSigner.doAttachedSign(content)).thenReturn(mockReturn);
+        byte[] signedDocument = "signed content".getBytes();
 
         // Act
-        byte[] result = signatureService.signDocument(BLANK_PDF, customCertificate);
+        Path result = signatureFileService.createPDF(
+                BLANK_PDF,
+                signedDocument,
+                customCertificate,
+                new VisualSignatureConfig(null, null, null ),
+                "http://example.com"
+        );
 
         // Assert
-        assertArrayEquals(mockReturn, result);
-        verify(mockSigner).doAttachedSign(content); // Verify the interaction with mockSigner
+        assertNotNull(result);
+        assertTrue(Files.exists(result));
+    }
+
+    @Test
+    void testCreatePDF_WithoutQRAndCustomPosition_shouldReturnSignedPDF() throws Exception {
+        // Arrange
+        byte[] signedDocument = "signed content".getBytes();
+
+        // Act
+        Path result = signatureFileService.createPDF(
+                BLANK_PDF,
+                signedDocument,
+                customCertificate,
+                new VisualSignatureConfig(0, 10, 10),
+                ""
+        );
+
+        // Assert
+        assertNotNull(result);
+        assertTrue(Files.exists(result));
     }
 
     @AfterAll
     public void tearDown() throws IOException {
         this.fileUtils.removeFile(BLANK_PDF);
+        this.fileUtils.removeFile(SIGNED_PDF);
     }
 }

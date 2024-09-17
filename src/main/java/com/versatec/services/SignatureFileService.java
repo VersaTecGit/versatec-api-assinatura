@@ -261,7 +261,7 @@ public class SignatureFileService {
      *
      * @return o nome do arquivo com "_assinado" acrescentado
      */
-    private String addSignatureName(String fileName) {
+    static String addSignatureName(String fileName) {
         var dotIndex = fileName.lastIndexOf('.');
         if (dotIndex != -1) {
             var name = fileName.substring(0, dotIndex);
