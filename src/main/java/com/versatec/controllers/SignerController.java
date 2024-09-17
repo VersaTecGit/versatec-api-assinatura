@@ -4,7 +4,9 @@ import com.versatec.customs.FileLocationEnum;
 import com.versatec.customs.WrongCertificatePasswordException;
 import com.versatec.customs.CustomCertificate;
 import com.versatec.customs.VisualSignatureConfig;
+import com.versatec.services.SignatureFileService;
 import com.versatec.services.SignatureService;
+import com.versatec.services.SignatureValidationService;
 import com.versatec.utils.FileUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -37,11 +39,21 @@ import java.util.*;
 public class SignerController {
 
     public final SignatureService signatureService;
+    public final SignatureFileService signatureFileService;
+    public final SignatureValidationService signatureValidationService;
     public final FileUtils fileUtils;
     public final ObjectMapper objectMapper;
 
-    public SignerController(SignatureService signatureService, FileUtils fileUtils, ObjectMapper objectMapper) {
+    public SignerController(
+            SignatureService signatureService,
+            SignatureFileService signatureFileService,
+            SignatureValidationService signatureValidationService,
+            FileUtils fileUtils,
+            ObjectMapper objectMapper
+    ) {
         this.signatureService = signatureService;
+        this.signatureFileService = signatureFileService;
+        this.signatureValidationService = signatureValidationService;
         this.fileUtils = fileUtils;
         this.objectMapper = objectMapper;
     }
@@ -49,9 +61,13 @@ public class SignerController {
     @PostMapping(path = "/sign", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(
             summary = "Assinar Documento",
-            description = "Assina um documento com assinador CADES, e certificado A1. <br/>" +
-                    "Caso seja enviada a URL onde o documento irá ser hospedado, inclui o QR CODE. <br/>" +
-                    "PageIndex, X, e Y, são parâmetros para customização da posição da assinatura visual",
+            description = "Assina um documento com assinador <b>CADES</b>, e certificado <b>A1</b>. <br/>" +
+                    "Caso seja enviada a <b>URL</b> onde o documento irá ser hospedado, inclui o <b>QR CODE</b>. <br/>" +
+                    "<b>PageIndex</b>, <b>X</b>, e <b>Y</b>, são parâmetros opcionais para customização da posição da assinatura visual. <br/><br/>" +
+                    "<b>PageIndex</b>: Começa de 0 e vai até o numero de páginas do documento -1. Para escolher automaticamente a " +
+                    "última página pode se enviar -1.<br/>" +
+                    "<b>X</b>: Margem a saltar do lado esquerdo da página. Valor padrão de assinatura sem QR: (Paisagem)356. (Retrato)233. <br/>" +
+                    "<b>Y</b>: Margem a saltar do lado inferior da página. Valor padrão de assinatura sem QR: 45. <br/>",
             responses = {
                     @ApiResponse(responseCode = "200", description = "Documento assinado com sucesso",
                             content = @Content(
@@ -66,13 +82,13 @@ public class SignerController {
                     ),
                     @ApiResponse(responseCode = "401", description = "Senha do certificado é inválida",
                             content = @Content(
-                                    mediaType = "application/json",
+                                    mediaType = "text/plain",
                                     schema = @Schema(implementation = String.class)
                             )
                     ),
                     @ApiResponse(responseCode = "403", description = "Certificado inválido",
                             content = @Content(
-                                    mediaType = "application/json",
+                                    mediaType = "text/plain",
                                     schema = @Schema(implementation = String.class)
                             )
                     ),
@@ -91,15 +107,12 @@ public class SignerController {
         Path outputPath = null;
 
         try {
-            VisualSignatureConfig visualSignatureConfig = null;
-            if (pageIndex != null && x != null && y != null) {
-                visualSignatureConfig = new VisualSignatureConfig(pageIndex, x, y);
-            }
-
+            var visualSignatureConfig = new VisualSignatureConfig(pageIndex, x, y);
             var customCertificate = new CustomCertificate(certificatePath, password);
-            byte[] signedDocument = this.signatureService.signDocument(filePath, customCertificate);
 
-            outputPath = this.signatureService.createPDF(filePath, signedDocument, customCertificate, visualSignatureConfig, url);
+            byte[] signedDocument = this.signatureService.signDocument(filePath, customCertificate);
+            outputPath = this.signatureFileService.createPDF(filePath, signedDocument, customCertificate, visualSignatureConfig, url);
+
             var signedPdfData = Files.readAllBytes(outputPath);
 
             HttpHeaders headers = new HttpHeaders();
@@ -128,15 +141,15 @@ public class SignerController {
             summary = "Validar assinatura",
             description = "Valida se todas as assinaturas de um documento são válidas",
             responses = {
-                    @ApiResponse(responseCode = "200", description = "Documento assinado com sucesso",
+                    @ApiResponse(responseCode = "200", description = "A assinatura é valida",
                             content = @Content(
-                                    mediaType = "application/json",
+                                    mediaType = "text/plain",
                                     schema = @Schema(implementation = String.class)
                             )
                     ),
                     @ApiResponse(responseCode = "400", description = "Bad Request - Algum dado enviado é invalido",
                             content = @Content(
-                                    mediaType = "application/json",
+                                    mediaType = "text/plain",
                                     schema = @Schema(implementation = String[].class)
                             )
                     )
@@ -147,7 +160,7 @@ public class SignerController {
         var filePath = this.fileUtils.uploadFile(file, FileLocationEnum.UPLOAD);
 
         try {
-            List<SignatureInformations> results = this.signatureService.validateAllSignatures(filePath);
+            List<SignatureInformations> results = this.signatureValidationService.validateAllSignatures(filePath);
 
             if (!results.isEmpty()) {
                 return ResponseEntity.ok("Valid document");
@@ -166,9 +179,9 @@ public class SignerController {
             summary = "Validar certificado",
             description = "Valida se um certificado é valido",
             responses = {
-                    @ApiResponse(responseCode = "200", description = "Documento assinado com sucesso",
+                    @ApiResponse(responseCode = "200", description = "O certificado é valido",
                             content = @Content(
-                                    mediaType = "application/json",
+                                    mediaType = "text/plain",
                                     schema = @Schema(implementation = String.class)
                             )
                     ),
@@ -178,9 +191,9 @@ public class SignerController {
                                     schema = @Schema(implementation = String[].class)
                             )
                     ),
-                    @ApiResponse(responseCode = "401", description = "Senha do certificado é inválida",
+                    @ApiResponse(responseCode = "401", description = "A senha ou certificado é inválido",
                             content = @Content(
-                                    mediaType = "application/json",
+                                    mediaType = "text/plain",
                                     schema = @Schema(implementation = String.class)
                             )
                     )
@@ -198,7 +211,7 @@ public class SignerController {
         } catch (WrongCertificatePasswordException e) {
             return ResponseEntity.status(401).body(e.getMessage());
         } catch (Exception e) {
-            return ResponseEntity.ok("Invalid certificate");
+            return ResponseEntity.status(401).body("Invalid certificate");
         } finally {
             this.fileUtils.removeFile(certificatePath);
         }
@@ -207,8 +220,9 @@ public class SignerController {
     @GetMapping("/qr-code")
     @Operation(
             summary = "Url na qual os Qr Codes apontam",
-            description = "Caso lido pela câmera do celular, redireciona o usuário para o site validar.iti.gov.br. <br/>" +
-                    "Caso lido pelo validador do site, retorna um json com a URL do pdf, para o site realizar o download do arquivo",
+            description = "Caso lido pela câmera do celular, redireciona o usuário para o site <b>validar.iti.gov.br</b>. <br/>" +
+                    "Caso lido pelo validador do site, retorna um json com a URL do pdf, para o site realizar o download do arquivo. <br/><br/>" +
+                    "<b>_format</b> e <b>_secretCode</b> são parâmetros criados para utilização do validador do governo",
             responses = {
                     @ApiResponse(responseCode = "200", description = "Json com url do documento",
                             content = @Content(

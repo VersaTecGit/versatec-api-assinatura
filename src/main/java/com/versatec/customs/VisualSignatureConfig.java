@@ -1,7 +1,7 @@
 package com.versatec.customs;
 
 public record VisualSignatureConfig(
-        int pageIndex,
-        int x,
-        int y
+        Integer pageIndex,
+        Integer x,
+        Integer y
 ) { }
