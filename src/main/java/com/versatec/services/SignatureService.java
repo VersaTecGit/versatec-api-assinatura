@@ -52,7 +52,7 @@ public class SignatureService {
      * @throws UnrecoverableKeyException se a chave privada não puder ser recuperada
      * @throws NoSuchAlgorithmException  se o algoritmo de hash não é suportado
      */
-    private PKCS7Signer getPKCS7Signer(CustomCertificate customCertificate)
+    PKCS7Signer getPKCS7Signer(CustomCertificate customCertificate)
             throws KeyStoreException,
             UnrecoverableKeyException,
             NoSuchAlgorithmException

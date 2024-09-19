@@ -53,7 +53,7 @@ public class SignatureValidationService {
                 var documentSignature = this.getDocumentSignature(cosDictionary);
 
                 var signingTime = this.extractDateOfDictM(cosDictionary.getDictionaryObject(COSName.M));
-                var checker = new CAdESChecker();
+                var checker = getCAdESChecker();
 
                 try {
                     this.processSignature(documentSignature, checker, signingTime, results);
@@ -66,6 +66,11 @@ public class SignatureValidationService {
         }
 
         return results;
+    }
+
+    CAdESChecker getCAdESChecker()
+    {
+        return new CAdESChecker();
     }
 
     /**
