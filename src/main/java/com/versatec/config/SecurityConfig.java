@@ -11,16 +11,12 @@ import org.springframework.security.web.SecurityFilterChain;
 public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http.csrf(AbstractHttpConfigurer::disable);
+        http.csrf(AbstractHttpConfigurer::disable)
+                .authorizeHttpRequests(requests ->
+                        requests.requestMatchers("/api/v1/qr-code").permitAll()
+                                .anyRequest().authenticated())
+                .httpBasic(Customizer.withDefaults());
 
-        http.authorizeHttpRequests(requests -> {
-            //Libera somente a rota de qr-code pra todos usarem
-            requests.requestMatchers("/api/v1/qr-code").permitAll();
-            //Bloqueia as demais rotas
-            requests.anyRequest().authenticated();
-        });
-
-        http.httpBasic(Customizer.withDefaults());
         return http.build();
     }
 }
