@@ -101,7 +101,7 @@ public class SignatureImageGenerator {
      * @throws Exception se houver um erro ao incluir o qr code
      */
     private void includeQrCode(Graphics2D graphics2D, String url) throws Exception {
-        var qr = QrCodeUtils.generateQrcode(appConfig.getUrl() + "/api/v1/qr-code&url=" + url);
+        var qr = QrCodeUtils.generateQrcode(appConfig.getUrl() + "/api/v1/qr-code?url=" + url);
         graphics2D.drawImage(qr, (int) (SPACING * 1.5), (int) (SPACING * 1.5), QR_SIDE, QR_SIDE, null);
         graphics2D.setFont(new Font(FONT_TYPE, Font.BOLD, INFO_FONT_SIZE));
         graphics2D.drawString(VERIFICATION_CODE_TEXT, (float) (SPACING * 1.5), (float) (SPACING * 37.5));
