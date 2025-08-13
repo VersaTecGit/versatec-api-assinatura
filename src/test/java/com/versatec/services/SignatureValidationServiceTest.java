@@ -75,7 +75,7 @@ class SignatureValidationServiceTest {
                 BLANK_PDF,
                 "signed content".getBytes(),
                 customCertificate,
-                new VisualSignatureConfig(null, null, null ),
+                new VisualSignatureConfig(null, null, null, null ),
                 "http://example.com"
         );
     }
@@ -116,7 +116,7 @@ class SignatureValidationServiceTest {
     }
 
     @AfterAll
-    public void tearDown() throws IOException {
+    void tearDown() throws IOException {
         this.fileUtils.removeFile(BLANK_PDF);
         this.fileUtils.removeFile(SIGNED_PDF);
     }

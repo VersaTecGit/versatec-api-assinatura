@@ -6,7 +6,6 @@ import com.versatec.customs.VisualSignatureConfig;
 import com.versatec.utils.FileUtils;
 import com.versatec.utils.PDFUtils;
 import com.versatec.utils.SignatureImageGenerator;
-import org.apache.pdfbox.io.IOUtils;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;

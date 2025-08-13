@@ -14,7 +14,7 @@ import java.security.*;
 @Service
 public class SignatureService {
 
-    public SignatureService() {
+    SignatureService() {
     }
 
     /**

@@ -5,16 +5,11 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import com.versatec.customs.CustomCertificate;
 import com.versatec.customs.FileLocationEnum;
-import com.versatec.customs.VisualSignatureConfig;
-import com.versatec.mocks.AppPropertiesMock;
 import com.versatec.mocks.FileStoragePropertiesMock;
 import com.versatec.utils.FileUtils;
-import com.versatec.utils.SignatureImageGenerator;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
-import org.demoiselle.signer.policy.impl.cades.SignatureInformations;
 import org.demoiselle.signer.policy.impl.cades.pkcs7.PKCS7Signer;
-import org.demoiselle.signer.policy.impl.cades.pkcs7.impl.CAdESChecker;
 import org.junit.jupiter.api.*;
 
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,8 +20,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @ExtendWith(MockitoExtension.class)
@@ -83,7 +76,7 @@ class SignatureServiceTest {
     }
 
     @AfterAll
-    public void tearDown() throws IOException {
+    void tearDown() throws IOException {
         this.fileUtils.removeFile(BLANK_PDF);
     }
 }

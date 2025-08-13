@@ -67,7 +67,8 @@ public class SignerController {
                     "<b>PageIndex</b>: Começa de 0 e vai até o numero de páginas do documento -1. Para escolher automaticamente a " +
                     "última página pode se enviar -1.<br/>" +
                     "<b>X</b>: Margem a saltar do lado esquerdo da página. Valor padrão de assinatura sem QR: (Paisagem)356. (Retrato)233. <br/>" +
-                    "<b>Y</b>: Margem a saltar do lado inferior da página. Valor padrão de assinatura sem QR: 45. <br/>",
+                    "<b>Y</b>: Margem a saltar do lado inferior da página. Valor padrão de assinatura sem QR: 45. <br/>" +
+                    "<b>AllPages</b>(opcional): Se for <b>true</b>, a assinatura será aplicada em todas as páginas do documento. <br/>",
             responses = {
                     @ApiResponse(responseCode = "200", description = "Documento assinado com sucesso",
                             content = @Content(
