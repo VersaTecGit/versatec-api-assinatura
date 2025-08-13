@@ -100,14 +100,16 @@ public class SignerController {
             @RequestParam(required = false) String url,
             @RequestParam(required = false) Integer pageIndex,
             @RequestParam(required = false) Integer x,
-            @RequestParam(required = false) Integer y
+            @RequestParam(required = false) Integer y,
+            @RequestParam(required = false, defaultValue = "false") Boolean allPages
+
     ) throws IOException {
         var filePath = this.fileUtils.uploadFile(file, FileLocationEnum.UPLOAD);
         var certificatePath = this.fileUtils.uploadFile(certificate, FileLocationEnum.UPLOAD);
         Path outputPath = null;
 
         try {
-            var visualSignatureConfig = new VisualSignatureConfig(pageIndex, x, y);
+            var visualSignatureConfig = new VisualSignatureConfig(pageIndex, x, y, allPages);
             var customCertificate = new CustomCertificate(certificatePath, password);
 
             byte[] signedDocument = this.signatureService.signDocument(filePath, customCertificate);

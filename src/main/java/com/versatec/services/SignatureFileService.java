@@ -34,15 +34,16 @@ public class SignatureFileService {
     }
 
     /**
-     * Cria um novo PDF a partir de um documento assinado e adiciona a assinatura
-     * visual.
+     * Cria um novo PDF a partir de um documento assinado, adicionando a imagem da
+     * assinatura em todas as páginas e, em seguida, a assinatura digital.
      *
      * @param filePath          o nome do arquivo original
      * @param signedDocument    o documento assinado
-     * @param customCertificate especialização do certificado, contendo informações necessárias
+     * @param customCertificate especialização do certificado, contendo informações
+     *                          necessárias
      * @param url               a URL do documento
      *
-     * @return o novo PDF assinado com a assinatura visual
+     * @return o novo PDF assinado
      * @throws IOException se houver um erro ao ler ou escrever o arquivo
      */
     public Path createPDF(
@@ -53,28 +54,86 @@ public class SignatureFileService {
             String url)
             throws Exception {
         var originalFile = filePath.toFile();
-        var originalDocument = PDDocument.load(originalFile);
-
         var signedFileName = this.addSignatureName(originalFile.getName());
         var downloadPath = fileUtils.getFilePath(signedFileName, FileLocationEnum.DOWNLOAD);
-        var output = new FileOutputStream(downloadPath.toString());
 
-        var signature = this.getPDSignature();
+        var tempOutputStream = new ByteArrayOutputStream();
+        try (PDDocument stampedDocument = this.createStampedDocument(originalFile, customCertificate,
+                visualSignatureConfig, url)) {
+            stampedDocument.save(tempOutputStream);
+        }
 
-        var signatureOptions = this.getSignatureOptions(signedDocument.length);
+        try (PDDocument finalDocument = PDDocument.load(new ByteArrayInputStream(tempOutputStream.toByteArray()));
+                FileOutputStream output = new FileOutputStream(downloadPath.toString())) {
 
-        this.setVisualSignature(signature, signatureOptions, originalDocument, customCertificate, visualSignatureConfig, url);
+            var signature = this.getPDSignature();
+            var signatureOptions = this.getSignatureOptions(signedDocument.length);
+            this.setVisualSignature(signature, signatureOptions, finalDocument, customCertificate,
+                    visualSignatureConfig, url);
 
-        originalDocument.addSignature(signature, signatureOptions);
+            finalDocument.addSignature(signature, signatureOptions);
+            var externalSigning = finalDocument.saveIncrementalForExternalSigning(output);
+            externalSigning.setSignature(signedDocument);
 
-        var externalSigning = originalDocument.saveIncrementalForExternalSigning(output);
-        externalSigning.setSignature(signedDocument);
-
-        originalDocument.saveIncremental(output);
-        originalDocument.close();
-        IOUtils.closeQuietly(signatureOptions);
+            finalDocument.saveIncremental(output);
+        }
 
         return downloadPath;
+    }
+
+    /**
+     * Adiciona a imagem da assinatura visual em todas as páginas e retorna o
+     * PDDocument modificado.
+     *
+     * @param originalFile          o arquivo PDF original
+     * @param customCertificate     especialização do certificado
+     * @param visualSignatureConfig as configurações da assinatura visual
+     * @param url                   a URL do documento (para QR Code)
+     * @return um PDDocument com a imagem da assinatura adicionada em todas as
+     *         páginas.
+     * @throws Exception se houver um erro
+     */
+    private PDDocument createStampedDocument(
+            File originalFile,
+            CustomCertificate customCertificate,
+            VisualSignatureConfig visualSignatureConfig,
+            String url) throws Exception {
+        PDDocument stampedDocument = PDDocument.load(originalFile);
+
+        var signatureContent = this.generateSignatureContent(customCertificate, this.getPDSignature(), url);
+        var widthSignature = this.getSignatureWidth(url);
+        var signatureHeight = (this.signatureImageGenerator.HEIGHT / 10);
+        PDImageXObject signatureImage = PDImageXObject.createFromByteArray(stampedDocument, signatureContent,
+                "signature_image.png");
+
+        int totalPages = stampedDocument.getNumberOfPages();
+
+        int pageIndexToStamp = -1;
+
+        if (visualSignatureConfig.allPages() == null || !visualSignatureConfig.allPages()) {
+            pageIndexToStamp = this.getPageIndex(visualSignatureConfig, totalPages);
+        }
+
+        for (int i = 0; i < totalPages; i++) {
+
+            if (visualSignatureConfig.allPages() != null && visualSignatureConfig.allPages() || i == pageIndexToStamp) {
+                PDPage page = stampedDocument.getPage(i);
+
+                var humanRectangle = this.getSignatureHumanRectangle(visualSignatureConfig, page, widthSignature,
+                        signatureHeight);
+
+                try (PDPageContentStream contentStream = new PDPageContentStream(stampedDocument, page,
+                        PDPageContentStream.AppendMode.APPEND, true, true)) {
+                    float x = (float) humanRectangle.getX();
+                    float y = (float) humanRectangle.getY();
+                    float width = (float) humanRectangle.getWidth();
+                    float height = (float) humanRectangle.getHeight();
+
+                    contentStream.drawImage(signatureImage, x, y, width, height);
+                }
+            }
+        }
+        return stampedDocument;
     }
 
     /**
@@ -111,7 +170,8 @@ public class SignatureFileService {
      * @param signature         a assinatura a ser adicionada ao documento
      * @param signatureOptions  as opções de assinatura a serem configuradas
      * @param originalDocument  o documento original
-     * @param customCertificate especialização do certificado, contendo informações necessárias
+     * @param customCertificate especialização do certificado, contendo informações
+     *                          necessárias
      * @param url               a URL do documento
      *
      * @throws IOException se houver um erro ao ler ou escrever o arquivo
@@ -122,30 +182,27 @@ public class SignatureFileService {
             PDDocument originalDocument,
             CustomCertificate customCertificate,
             VisualSignatureConfig visualSignatureConfig,
-            String url
-    ) throws Exception {
+            String url) throws Exception {
         // Obtém a página do documento a ser assinada
         var pages = originalDocument.getDocumentCatalog().getPages();
         int pageIndex = this.getPageIndex(visualSignatureConfig, pages.getCount());
         var signaturePage = pages.get(pageIndex);
 
-        //Gera a imagem da assinatura
+        // Gera a imagem da assinatura
         var signatureContent = this.generateSignatureContent(customCertificate, signature, url);
         var widthSignature = this.getSignatureWidth(url);
 
-        //Configura a posição e tamanho da assinatura
+        // Configura a posição e tamanho da assinatura
         var humanRectangle = this.getSignatureHumanRectangle(
                 visualSignatureConfig,
                 signaturePage,
                 widthSignature,
-                (this.signatureImageGenerator.HEIGHT / 10)
-        );
+                (this.signatureImageGenerator.HEIGHT / 10));
 
         var inputStream = this.includeVisualSignature(
                 signaturePage,
                 humanRectangle,
-                signatureContent
-        );
+                signatureContent);
 
         // Configura a página a ser assinada
         signatureOptions.setPage(pageIndex);
@@ -156,12 +213,14 @@ public class SignatureFileService {
      * Retorna a imagem correta de assinatura
      *
      * @param signature         a assinatura a ser adicionada ao documento
-     * @param customCertificate especialização do certificado, contendo informações necessárias
+     * @param customCertificate especialização do certificado, contendo informações
+     *                          necessárias
      * @param url               a URL do documento
      *
      * @throws IOException se houver um erro ao ler ou escrever o arquivo
      */
-    private byte[] generateSignatureContent(CustomCertificate customCertificate, PDSignature signature, String url) throws Exception {
+    private byte[] generateSignatureContent(CustomCertificate customCertificate, PDSignature signature, String url)
+            throws Exception {
         var name = customCertificate.getCertificateName();
         var identifier = customCertificate.getIdentifier();
         var date = signature.getSignDate().getTime();
@@ -190,18 +249,17 @@ public class SignatureFileService {
      * O índice é baseado em zero, ou seja, a primeira página possui índice 0.
      * Para automaticamente selecionar a ultíma página pode ser passado o
      * valor −1 na Configuração de assinatura
-     * Se o índice for inválido ou for maior que o número de páginas, a última página será usada.
+     * Se o índice for inválido ou for maior que o número de páginas, a última
+     * página será usada.
      *
      * @param pageCount o número total de páginas no documento
      *
      * @return o índice da página onde a assinatura visual será adicionada
      */
     private int getPageIndex(VisualSignatureConfig visualSignatureConfig, int pageCount) {
-        if (
-                visualSignatureConfig.pageIndex() == null ||
-                        visualSignatureConfig.pageIndex() == -1 ||
-                        visualSignatureConfig.pageIndex() >= pageCount
-        ) {
+        if (visualSignatureConfig.pageIndex() == null ||
+                visualSignatureConfig.pageIndex() == -1 ||
+                visualSignatureConfig.pageIndex() >= pageCount) {
             return pageCount - 1;
         }
 
@@ -224,33 +282,30 @@ public class SignatureFileService {
             VisualSignatureConfig visualSignatureConfig,
             PDPage page,
             int signatureWidth,
-            int signatureHeight
-    ) {
-        //Troca a largura caso a página esteja deitada
+            int signatureHeight) {
+        // Troca a largura caso a página esteja deitada
         var pageBox = page.getMediaBox();
         var pageWidth = pageBox.getWidth();
         if (page.getRotation() == 90 || page.getRotation() == 270) {
             pageWidth = pageBox.getHeight();
         }
 
-        //Retorna os valores da configuração customizada
+        // Retorna os valores da configuração customizada
         if (visualSignatureConfig.x() != null &&
                 visualSignatureConfig.y() != null) {
             return new Rectangle2D.Float(
                     visualSignatureConfig.x(),
                     visualSignatureConfig.y(),
                     signatureWidth,
-                    signatureHeight
-            );
+                    signatureHeight);
         }
 
-        //Retorna a posição padrão centralizada, e com margem ABNT
+        // Retorna a posição padrão centralizada, e com margem ABNT
         return new Rectangle2D.Float(
                 (pageWidth - signatureWidth) / 2,
-                (float) (((16) * 72) / 25.4), //Margem de 16mm convertido para points (No mundo real 2cm)
+                (float) (((16) * 72) / 25.4), // Margem de 16mm convertido para points (No mundo real 2cm)
                 signatureWidth,
-                signatureHeight
-        );
+                signatureHeight);
     }
 
     /**
@@ -274,11 +329,13 @@ public class SignatureFileService {
 
     /**
      * Cria um retângulo que representa a área onde a assinatura será desenhada.
-     * A assinatura será desenhada na página com as mesmas coordenadas (x, y) independentemente da rotação da página.
+     * A assinatura será desenhada na página com as mesmas coordenadas (x, y)
+     * independentemente da rotação da página.
      * As coordenadas começam da parte inferior esquerda da página.
      *
      * @param page           a página a ser assinada
-     * @param humanRectangle o retângulo em formato amigável que representa a área onde a assinatura deve ser desenhada
+     * @param humanRectangle o retângulo em formato amigável que representa a área
+     *                       onde a assinatura deve ser desenhada
      *
      * @return o retângulo que representa a área onde a assinatura será desenhada
      */
@@ -322,11 +379,12 @@ public class SignatureFileService {
     }
 
     /**
-     * Incluir as configurações do pdf, a forma que a assinatura visual deve ser posicionada
+     * Incluir as configurações do pdf, a forma que a assinatura visual deve ser
+     * posicionada
      *
-     * @param originPage        a página de origem
-     * @param humanRectangle    o posicionamento
-     * @param signatureContent  o conteúdo da assinatura
+     * @param originPage       a página de origem
+     * @param humanRectangle   o posicionamento
+     * @param signatureContent o conteúdo da assinatura
      *
      * @return um fluxo de entrada com o modelo de assinatura visual
      * @throws IOException se ocorrer um erro de I/O
@@ -334,8 +392,7 @@ public class SignatureFileService {
     private InputStream includeVisualSignature(
             PDPage originPage,
             Rectangle2D humanRectangle,
-            byte[] signatureContent
-    ) throws IOException {
+            byte[] signatureContent) throws IOException {
         try (PDDocument doc = new PDDocument()) {
             var rectanglePosition = this.createSignatureRectangle(originPage, humanRectangle);
 
