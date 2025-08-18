@@ -1,5 +1,9 @@
 package com.versatec.services;
 
+import com.itextpdf.kernel.pdf.PdfDocument;
+import com.itextpdf.kernel.pdf.PdfReader;
+import com.itextpdf.kernel.pdf.PdfWriter;
+import com.itextpdf.kernel.pdf.WriterProperties;
 import com.versatec.customs.CustomCertificate;
 import com.versatec.customs.FileLocationEnum;
 import com.versatec.customs.VisualSignatureConfig;
@@ -56,19 +60,29 @@ public class SignatureFileService {
         var signedFileName = this.addSignatureName(originalFile.getName());
         var downloadPath = fileUtils.getFilePath(signedFileName, FileLocationEnum.DOWNLOAD);
 
-        var tempOutputStream = new ByteArrayOutputStream();
-        try (PDDocument stampedDocument = this.createStampedDocument(originalFile, customCertificate,
-                visualSignatureConfig, url)) {
-            stampedDocument.save(tempOutputStream);
+        PDDocument documentToProcess = (visualSignatureConfig.allPages() != null && visualSignatureConfig.allPages())
+                ? this.createStampedDocument(originalFile, customCertificate, visualSignatureConfig, url)
+                : PDDocument.load(originalFile);
+
+        byte[] processedDocumentBytes;
+        try (PDDocument doc = documentToProcess) {
+            var outputStream = new ByteArrayOutputStream();
+            doc.save(outputStream);
+            processedDocumentBytes = compressPDF(outputStream.toByteArray());
         }
 
-        try (PDDocument finalDocument = PDDocument.load(new ByteArrayInputStream(tempOutputStream.toByteArray()));
+        try (PDDocument finalDocument = PDDocument.load(new ByteArrayInputStream(processedDocumentBytes));
                 FileOutputStream output = new FileOutputStream(downloadPath.toString())) {
 
             var signature = this.getPDSignature();
             var signatureOptions = this.getSignatureOptions(signedDocument.length);
-            this.setVisualSignature(signature, signatureOptions, finalDocument, customCertificate,
-                    visualSignatureConfig, url);
+
+            if (visualSignatureConfig.allPages() == null || !visualSignatureConfig.allPages()) {
+                this.setVisualSignature(signature, signatureOptions, finalDocument, customCertificate, visualSignatureConfig, url);
+            } else {
+                int pageIndexForDigitalSignatureField = this.getPageIndex(visualSignatureConfig, finalDocument.getNumberOfPages());
+                signatureOptions.setPage(pageIndexForDigitalSignatureField);
+            }
 
             finalDocument.addSignature(signature, signatureOptions);
             var externalSigning = finalDocument.saveIncrementalForExternalSigning(output);
@@ -78,6 +92,22 @@ public class SignatureFileService {
         }
 
         return downloadPath;
+    }
+
+    private byte[] compressPDF(byte[] pdfBytes) throws IOException {
+        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(pdfBytes);
+                ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+
+            PdfReader reader = new PdfReader(inputStream);
+            PdfWriter writer = new PdfWriter(outputStream, new WriterProperties().setFullCompressionMode(true));
+
+            // Ao reescrever o documento com um novo PdfWriter, o iText já
+            // otimiza o conteúdo, incluindo a compressão dos streams.
+            try (PdfDocument pdfDocument = new PdfDocument(reader, writer)) {
+            }
+
+            return outputStream.toByteArray();
+        }
     }
 
     /**
