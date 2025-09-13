@@ -12,9 +12,12 @@ import org.bouncycastle.cms.CMSSignedData;
 import org.demoiselle.signer.core.extension.BasicCertificate;
 import org.demoiselle.signer.policy.impl.cades.SignatureInformations;
 import org.demoiselle.signer.policy.impl.cades.pkcs7.impl.CAdESChecker;
+import org.demoiselle.signer.policy.impl.xades.XMLSignatureInformations;
+import org.demoiselle.signer.policy.impl.xades.xml.impl.XMLChecker;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.cert.CertificateException;
@@ -32,18 +35,20 @@ public class SignatureValidationService {
      *
      * @param filePath o caminho para o arquivo PDF a ser validado
      *
-     * @return uma lista de informações sobre as assinaturas encontradas e o resultado da validação
+     * @return uma lista de informações sobre as assinaturas encontradas e o
+     *         resultado da validação
      * @throws IOException          se ocorrer um erro de I/O
-     * @throws ParseException       se ocorrer um erro ao analisar a data da assinatura
-     * @throws CMSException         se ocorrer um erro relacionado ao CMS (Cryptographic Message Syntax)
+     * @throws ParseException       se ocorrer um erro ao analisar a data da
+     *                              assinatura
+     * @throws CMSException         se ocorrer um erro relacionado ao CMS
+     *                              (Cryptographic Message Syntax)
      * @throws CertificateException se ocorrer um erro ao processar os certificados
      */
     public List<SignatureInformations> validateAllSignatures(Path filePath)
             throws IOException,
             ParseException,
             CMSException,
-            CertificateException
-    {
+            CertificateException {
         var results = new ArrayList<SignatureInformations>();
         var file = filePath.toFile();
 
@@ -68,18 +73,20 @@ public class SignatureValidationService {
         return results;
     }
 
-    CAdESChecker getCAdESChecker()
-    {
+    CAdESChecker getCAdESChecker() {
         return new CAdESChecker();
     }
 
     /**
-     * Extrai e analisa a data a partir do objeto COSBase que representa a data da assinatura.
+     * Extrai e analisa a data a partir do objeto COSBase que representa a data da
+     * assinatura.
      *
-     * @param cosNameM o objeto COSBase que contém a data da assinatura no formato COSString
+     * @param cosNameM o objeto COSBase que contém a data da assinatura no formato
+     *                 COSString
      *
      * @return a data extraída e analisada como um objeto {@link Date}
-     * @throws ParseException se ocorrer um erro ao analisar a data do formato string para o formato {@link Date}
+     * @throws ParseException se ocorrer um erro ao analisar a data do formato
+     *                        string para o formato {@link Date}
      */
     private Date extractDateOfDictM(COSBase cosNameM) throws ParseException {
         var dateString = cosNameM.toString();
@@ -109,14 +116,14 @@ public class SignatureValidationService {
      * @param documentSignature o conteúdo da assinatura
      * @param checker           o objeto para validação da assinatura
      * @param signingTime       a data da assinatura
-     * @param results           a lista onde as informações da assinatura serão adicionadas
+     * @param results           a lista onde as informações da assinatura serão
+     *                          adicionadas
      */
     private void processSignature(
             byte[] documentSignature,
             CAdESChecker checker,
             Date signingTime,
-            List<SignatureInformations> results
-    ) {
+            List<SignatureInformations> results) {
         var result = checker.checkAttachedSignature(documentSignature);
         if (result != null && !result.isEmpty()) {
             checker.getSignaturesInfo().get(0).setSignDate(signingTime);
@@ -132,7 +139,8 @@ public class SignatureValidationService {
      * @param documentSignature o conteúdo da assinatura
      * @param e                 a exceção lançada durante a validação
      * @param signingTime       a data da assinatura
-     * @param results           a lista onde as informações da assinatura inválida serão adicionadas
+     * @param results           a lista onde as informações da assinatura inválida
+     *                          serão adicionadas
      *
      * @throws CertificateException se ocorrer um erro ao processar os certificados
      * @throws IOException          se ocorrer um erro de I/O ao gerar certificados
@@ -141,15 +149,14 @@ public class SignatureValidationService {
             byte[] documentSignature,
             Exception e,
             Date signingTime,
-            List<SignatureInformations> results
-    )
+            List<SignatureInformations> results)
             throws CertificateException,
             IOException,
-            CMSException
-    {
+            CMSException {
         var cmsSignedData = new CMSSignedData(documentSignature);
         var signerInfo = cmsSignedData.getSignerInfos().getSigners().iterator().next();
-        Collection<X509CertificateHolder> certificateChain = cmsSignedData.getCertificates().getMatches(signerInfo.getSID());
+        Collection<X509CertificateHolder> certificateChain = cmsSignedData.getCertificates()
+                .getMatches(signerInfo.getSID());
 
         var certificates = extractCertificates(certificateChain);
 
@@ -169,16 +176,16 @@ public class SignatureValidationService {
      *
      * @return uma lista de certificados X509 extraídos
      * @throws CertificateException se ocorrer um erro ao processar os certificados
-     * @throws IOException se ocorrer um erro de I/O ao gerar certificados
+     * @throws IOException          se ocorrer um erro de I/O ao gerar certificados
      */
     private List<X509Certificate> extractCertificates(Collection<X509CertificateHolder> certificateChain)
             throws CertificateException,
-            IOException
-    {
+            IOException {
         var certFactory = CertificateFactory.getInstance("X.509");
         var certificates = new ArrayList<X509Certificate>();
         for (X509CertificateHolder certHolder : certificateChain) {
-            var cert = (X509Certificate) certFactory.generateCertificate(new ByteArrayInputStream(certHolder.getEncoded()));
+            var cert = (X509Certificate) certFactory
+                    .generateCertificate(new ByteArrayInputStream(certHolder.getEncoded()));
             certificates.add(cert);
         }
         return certificates;
@@ -188,7 +195,7 @@ public class SignatureValidationService {
      * Verifica se houve modificação incremental no arquivo PDF.
      *
      * @param signature a assinatura do documento
-     * @param filePath o caminho para o arquivo PDF
+     * @param filePath  o caminho para o arquivo PDF
      */
     private void checkIncrementalModification(PDSignature signature, Path filePath) {
         var byteRange = signature.getByteRange();
@@ -196,6 +203,34 @@ public class SignatureValidationService {
         var fileLen = (int) filePath.toFile().length();
         if (fileLen > rangeMax) {
             System.err.println("Error! Incremental modification detected.");
+        }
+    }
+
+    /**
+     * Valida se um arquivo XML contém assinaturas digitais.
+     *
+     * @param filePath O caminho para o arquivo XML a ser validado.
+     * @return true se o XML contiver pelo menos uma assinatura válida, false caso
+     *         contrário.
+     */
+    public boolean validateXmlSignature(Path filePath) {
+        try {
+            XMLChecker xadesChecker = new XMLChecker();
+
+            xadesChecker.check(true, filePath.toString());
+            List<XMLSignatureInformations> results = xadesChecker.getSignaturesInfo();
+
+            if (!results.isEmpty()) {
+                for (XMLSignatureInformations signatureInfo : results) {
+                    if (!signatureInfo.isInvalidSignature() && signatureInfo.getValidatorErrors().isEmpty()) {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        } catch (Exception e) {
+            return false;
         }
     }
 }
