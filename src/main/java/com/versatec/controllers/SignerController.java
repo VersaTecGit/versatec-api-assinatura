@@ -203,6 +203,7 @@ public class SignerController {
     }
 
     @PostMapping("/sign-xml")
+    @Operation(summary = "Assina um arquivo XML")
     public ResponseEntity<?> signXml(
             @RequestParam @NotNull MultipartFile file,
             @RequestParam @NotNull MultipartFile certificate,
@@ -220,10 +221,8 @@ public class SignerController {
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + file.getOriginalFilename())
                     .body(signedDocument);
-        } catch (WrongCertificatePasswordException e) {
-            return ResponseEntity.status(401).body(e.getMessage());
         } catch (Exception e) {
-            return ResponseEntity.status(401).body("Invalid certificate");
+            return ResponseEntity.status(401).body(e.getMessage());
         } finally {
             this.fileUtils.removeFile(certificatePath);
         }

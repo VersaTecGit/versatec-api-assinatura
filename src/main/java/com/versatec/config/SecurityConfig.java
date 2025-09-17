@@ -13,7 +13,11 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(requests ->
-                        requests.requestMatchers("/api/v1/qr-code").permitAll()
+                        requests.requestMatchers(
+                                "/api/v1/qr-code",
+                                "/swagger-ui/**",
+                                "/v1/api-docs/**"
+                        ).permitAll()
                                 .anyRequest().authenticated())
                 .httpBasic(Customizer.withDefaults());
 
