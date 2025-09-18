@@ -203,7 +203,10 @@ public class SignerController {
     }
 
     @PostMapping("/sign-xml")
-    @Operation(summary = "Assina um arquivo XML")
+    @Operation(summary = "Assina um arquivo XML", description = "Realiza a assinatura digital de um documento xml, utilizando um certificado digital.",  responses = {
+                    @ApiResponse(responseCode = "200", description = "Documento assinado com sucesso", content = @Content(mediaType = "application/pdf")),
+                    @ApiResponse(responseCode = "401", description = "Bad Request - Algum dado enviado é invalido, formato do arquivo ou certificado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String[].class)))
+    })
     public ResponseEntity<?> signXml(
             @RequestParam @NotNull MultipartFile file,
             @RequestParam @NotNull MultipartFile certificate,
