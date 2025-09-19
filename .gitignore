@@ -35,3 +35,6 @@ demandas1.txt
 demandas2.txt
 demandas3.txt
 reuniao1.txt
+
+uploads/
+!uploads/.gitkeep
