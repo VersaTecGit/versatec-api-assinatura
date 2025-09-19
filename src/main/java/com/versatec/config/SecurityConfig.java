@@ -16,6 +16,7 @@ public class SecurityConfig {
                         requests.requestMatchers(
                                 "/api/v1/qr-code",
                                 "/swagger-ui/**",
+                                "/swagger/**",
                                 "/v1/api-docs/**"
                         ).permitAll()
                                 .anyRequest().authenticated())
