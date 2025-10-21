@@ -22,6 +22,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import io.micrometer.common.lang.Nullable;
 import io.swagger.v3.oas.annotations.*;
 import io.swagger.v3.oas.annotations.responses.*;
 import io.swagger.v3.oas.annotations.media.*;
@@ -210,7 +212,8 @@ public class SignerController {
     public ResponseEntity<?> signXml(
             @RequestParam @NotNull MultipartFile file,
             @RequestParam @NotNull MultipartFile certificate,
-            @RequestParam @NotNull String password) throws IOException {
+            @RequestParam @NotNull String password,
+            @RequestParam @Nullable boolean timeStamp ) throws IOException {
 
         var filePath = this.fileUtils.uploadFile(file, FileLocationEnum.UPLOAD);
         var certificatePath = this.fileUtils.uploadFile(certificate, FileLocationEnum.UPLOAD);
@@ -219,7 +222,7 @@ public class SignerController {
             var customCertificate = new CustomCertificate(certificatePath, password);
             customCertificate.checkValidity();
 
-            var signedDocument = this.signatureService.signXmlDocument(filePath, customCertificate);
+            var signedDocument = this.signatureService.signXmlDocument(filePath, customCertificate, timeStamp);
 
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + file.getOriginalFilename())

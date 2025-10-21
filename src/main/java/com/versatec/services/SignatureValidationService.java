@@ -17,7 +17,6 @@ import org.demoiselle.signer.policy.impl.xades.xml.impl.XMLChecker;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.cert.CertificateException;

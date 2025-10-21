@@ -42,7 +42,7 @@ class SignatureServiceTest {
 
         this.fileUtils = new FileUtils(FileStoragePropertiesMock.create());
 
-        this.signatureService = spy(new SignatureService());
+        this.signatureService = spy(new SignatureService(new TimeStampService()));
 
         var certificatePath =  fileUtils.getFilePath("testCert.pfx", FileLocationEnum.ASSET);
         customCertificate = new CustomCertificate(certificatePath, "123456");
