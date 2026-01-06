@@ -125,7 +125,7 @@ public class SignatureService {
 
         if (timeStamp) {
 
-            String accessToken = this.timeStampService.getAccessToken();
+            String accessToken = this.timeStampService.getEncodedCredentials();
 
             TimeStampConfig.getInstance().setApiSERPRO(true);
             TimeStampConfig.getInstance().setClientCredentials(accessToken);

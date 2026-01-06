@@ -23,7 +23,6 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import io.micrometer.common.lang.Nullable;
 import io.swagger.v3.oas.annotations.*;
 import io.swagger.v3.oas.annotations.responses.*;
 import io.swagger.v3.oas.annotations.media.*;
@@ -205,15 +204,15 @@ public class SignerController {
     }
 
     @PostMapping(path = "/sign-xml", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "Assina um arquivo XML", description = "Realiza a assinatura digital de um documento xml, utilizando um certificado digital.",  responses = {
-                    @ApiResponse(responseCode = "200", description = "Documento assinado com sucesso", content = @Content(mediaType = "application/pdf")),
-                    @ApiResponse(responseCode = "401", description = "Bad Request - Algum dado enviado é invalido, formato do arquivo ou certificado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String[].class)))
+    @Operation(summary = "Assina um arquivo XML", description = "Realiza a assinatura digital de um documento xml, utilizando um certificado digital.", responses = {
+            @ApiResponse(responseCode = "200", description = "Documento assinado com sucesso", content = @Content(mediaType = "application/pdf")),
+            @ApiResponse(responseCode = "401", description = "Bad Request - Algum dado enviado é invalido, formato do arquivo ou certificado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String[].class)))
     })
     public ResponseEntity<?> signXml(
             @RequestParam @NotNull MultipartFile file,
             @RequestParam @NotNull MultipartFile certificate,
             @RequestParam @NotNull String password,
-            @RequestParam @Nullable boolean timeStamp ) throws IOException {
+            @RequestParam @NotNull boolean timeStamp) throws IOException {
 
         var filePath = this.fileUtils.uploadFile(file, FileLocationEnum.UPLOAD);
         var certificatePath = this.fileUtils.uploadFile(certificate, FileLocationEnum.UPLOAD);
@@ -239,15 +238,23 @@ public class SignerController {
             @ApiResponse(responseCode = "200", description = "A assinatura é valida", content = @Content(mediaType = "text/plain", schema = @Schema(implementation = String.class))),
             @ApiResponse(responseCode = "400", description = "Bad Request - Algum dado enviado é invalido", content = @Content(mediaType = "text/plain", schema = @Schema(implementation = String[].class)))
     })
-    public ResponseEntity<?> validateXmlSignature(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<String> validateXmlSignature(
+        @RequestParam("file") MultipartFile file
+    ) throws IOException {
+
+        var filePath = this.fileUtils.uploadFile(file, FileLocationEnum.UPLOAD);
+
         try {
-            var filePath = this.fileUtils.uploadFile(file, FileLocationEnum.UPLOAD);
             var isValid = this.signatureValidationService.validateXmlSignature(filePath);
 
-            var responseMessage = isValid ? "Sined Document" : "Unsigned document";
+            var responseMessage = isValid ? "Signed document XML" : "Unsigned document XML";
             return ResponseEntity.ok(responseMessage);
-        } catch (IOException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("File upload failed: " + e.getMessage());
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("File upload failed: " + e.getMessage());
+        } finally {
+            this.fileUtils.removeFile(filePath);
         }
     }
 

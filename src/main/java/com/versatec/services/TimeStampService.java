@@ -34,31 +34,6 @@ public class TimeStampService {
     @Value("${serpro.auth.consumer.secret}")
     private String serproAuthConsumerSecret;
 
-    public byte[] getTimestampToken(byte[] hash) throws Exception {
-
-        String accessToken = getAccessToken();
-
-        try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
-            HttpPost httpPost = new HttpPost(tsaUrl);
-
-            httpPost.setHeader("Authorization", "Bearer " + accessToken);
-            httpPost.setHeader("Content-Type", "application/octet-stream");
-            httpPost.setHeader("Accept", "application/octet-stream");
-
-            HttpEntity entity = new ByteArrayEntity(hash);
-            httpPost.setEntity(entity);
-
-            try (CloseableHttpResponse response = httpClient.execute(httpPost)) {
-                if (response.getStatusLine().getStatusCode() == 200) {
-                    return EntityUtils.toByteArray(response.getEntity());
-                } else {
-                    throw new Exception(
-                            "Falha ao obter carimbo de tempo. Status: " + response.getStatusLine().getStatusCode());
-                }
-            }
-        }
-    }
-
     /**
      * Faz uma requisição para a API de autenticação do SERPRO para obter um token
      * de acesso.
@@ -70,9 +45,7 @@ public class TimeStampService {
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
             HttpPost httpPost = new HttpPost(serproAuthTokenUrl);
 
-            String credentials = serproAuthConsumerKey + ":" + serproAuthConsumerSecret;
-            String encodedCredentials = Base64.getEncoder()
-                    .encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
+            String encodedCredentials = this.getEncodedCredentials();
 
             httpPost.setHeader("Authorization", "Basic " + encodedCredentials);
 
@@ -88,10 +61,20 @@ public class TimeStampService {
                     JsonNode rootNode = objectMapper.readTree(jsonResponse);
                     return rootNode.get("access_token").asText();
                 } else {
-                    throw new Exception(
-                            "Falha ao obter o token de acesso. Status: " + response.getStatusLine().getStatusCode());
+                    throw new Exception("Falha ao obter o token de acesso. Status: " +
+                            response.getStatusLine().getStatusCode());
                 }
             }
         }
+    }
+
+    /**
+     * Codifica as credenciais do consumidor em Base64.
+     *
+     * @return As credenciais codificadas em Base64.
+     */
+    public String getEncodedCredentials() {
+        String credentials = serproAuthConsumerKey + ":" + serproAuthConsumerSecret;
+        return Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
     }
 }
