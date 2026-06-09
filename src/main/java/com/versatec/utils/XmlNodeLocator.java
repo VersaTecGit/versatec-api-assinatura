@@ -34,6 +34,15 @@ public class XmlNodeLocator {
     public Element locate(Document document, String xpath)
             throws XPathExpressionException, XmlNodeNotFoundException {
 
+        // Se o xpath for apenas um nome de tag (ex: "A"), tenta buscar pelo nome da tag primeiro
+        if (xpath != null && xpath.matches("^[a-zA-Z0-9_:-]+$")) {
+            var elements = document.getElementsByTagName(xpath);
+            if (elements.getLength() > 0) {
+                return (Element) elements.item(0);
+            }
+        }
+
+        // Caso contrário, avalia como uma expressão XPath real
         XPath xPath = XPathFactory.newInstance().newXPath();
         Element node = (Element) xPath.compile(xpath).evaluate(document, XPathConstants.NODE);
 

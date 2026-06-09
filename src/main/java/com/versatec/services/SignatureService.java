@@ -106,15 +106,30 @@ public class SignatureService {
      * @throws KeyStoreException         se houver um erro com o KeyStore
      * @throws NoSuchAlgorithmException  se o algoritmo de hash não é suportado
      */
-    public byte[] signXmlDocument(Path filePath, CustomCertificate customCertificate, boolean timeStamp)
+    public byte[] signXmlDocument(Path filePath, CustomCertificate customCertificate, boolean timeStamp, String targetXPath)
             throws Exception {
 
         var signer = this.getXmlSigner(customCertificate, timeStamp);
         Document signed = signer.signEnveloped(true, filePath.toString());
 
-        byte[] bytes = this.documentToBytes(signed);
+        if (targetXPath != null && !targetXPath.isBlank()) {
+            Element targetElement = xmlNodeLocator.locate(signed, targetXPath);
+            Element root = signed.getDocumentElement();
+            
+            // Demoiselle appends the <ds:Signature> at the root element.
+            // We locate it and move it to the targetXPath element.
+            org.w3c.dom.NodeList signatures = signed.getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature");
+            if (signatures.getLength() > 0) {
+                org.w3c.dom.Node sigNode = signatures.item(signatures.getLength() - 1);
+                
+                if (!targetElement.isSameNode(root)) {
+                    root.removeChild(sigNode);
+                    targetElement.appendChild(sigNode);
+                }
+            }
+        }
 
-        return bytes;
+        return this.documentToBytes(signed);
     }
 
     /**
@@ -145,33 +160,6 @@ public class SignatureService {
         }
 
         return signer;
-    }
-
-    /**
-     * Signs a specific node inside an XML document identified by an XPath expression.
-     *
-     * <p>This method keeps the rest of the document — including any signatures already
-     * present — completely intact. It is designed for scenarios that require multiple
-     * independent signatures on different nodes of the same XML (e.g. Digital Diplomas
-     * with separate IES Emissora and IES Registradora signatures).</p>
-     *
-     * @param filePath          path to the XML file to be signed
-     * @param customCertificate certificate and private key used for signing
-     * @param targetXPath       XPath expression pointing to the element that will
-     *                          receive the enveloped {@code <ds:Signature>} as a child
-     * @return the serialised XML document with the new signature appended to the target node
-     * @throws XmlNodeNotFoundException if {@code targetXPath} does not match any element
-     * @throws Exception                on any cryptographic or XML processing error
-     */
-    public byte[] signXmlDocumentAtNode(
-            Path filePath,
-            CustomCertificate customCertificate,
-            String targetXPath) throws Exception {
-
-        Document document = parseXmlToDocument(filePath);
-        Element targetElement = xmlNodeLocator.locate(document, targetXPath);
-        xmlNodeSigner.signElement(document, targetElement, customCertificate);
-        return documentToBytes(document);
     }
 
     /**

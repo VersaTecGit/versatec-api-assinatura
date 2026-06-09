@@ -217,7 +217,7 @@ public class SignerController {
             @RequestParam @NotNull MultipartFile file,
             @RequestParam @NotNull MultipartFile certificate,
             @RequestParam @NotNull String password,
-            @RequestParam @NotNull boolean timeStamp,
+            @RequestParam(required = false, defaultValue = "false") boolean timeStamp,
             @RequestParam(required = false) String targetXPath) throws IOException {
 
         var filePath = this.fileUtils.uploadFile(file, FileLocationEnum.UPLOAD);
@@ -227,14 +227,8 @@ public class SignerController {
             var customCertificate = new CustomCertificate(certificatePath, password);
             customCertificate.checkValidity();
 
-            byte[] signedDocument;
-            if (targetXPath != null && !targetXPath.isBlank()) {
-                signedDocument = this.signatureService.signXmlDocumentAtNode(
-                        filePath, customCertificate, targetXPath);
-            } else {
-                signedDocument = this.signatureService.signXmlDocument(
-                        filePath, customCertificate, timeStamp);
-            }
+            byte[] signedDocument = this.signatureService.signXmlDocument(
+                    filePath, customCertificate, timeStamp, targetXPath);
 
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + file.getOriginalFilename())
