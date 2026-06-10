@@ -33,6 +33,12 @@ public class SignatureService {
     private final XmlNodeLocator xmlNodeLocator;
     private final XmlNodeSigner xmlNodeSigner;
 
+    public SignatureService(TimeStampService timeStampService) {
+        this.timeStampService = timeStampService;
+        this.xmlNodeLocator = new XmlNodeLocator();
+        this.xmlNodeSigner = new XmlNodeSigner();
+    }
+
     @Autowired
     public SignatureService(
             TimeStampService timeStampService,
