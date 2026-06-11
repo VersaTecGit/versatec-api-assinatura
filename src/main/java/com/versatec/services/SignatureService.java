@@ -2,12 +2,20 @@ package com.versatec.services;
 
 import com.versatec.customs.CustomCertificate;
 import com.versatec.customs.WrongCertificatePasswordException;
+import com.versatec.customs.XmlNodeNotFoundException;
+import com.versatec.utils.XmlNodeLocator;
+import com.versatec.utils.XmlNodeSigner;
 import org.demoiselle.signer.policy.impl.cades.factory.PKCS7Factory;
 import org.demoiselle.signer.policy.impl.cades.pkcs7.PKCS7Signer;
+import org.demoiselle.signer.policy.impl.xades.XMLPoliciesOID;
 import org.demoiselle.signer.policy.impl.xades.xml.impl.XMLSigner;
+import org.demoiselle.signer.timestamp.configuration.TimeStampConfig;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 
+import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -21,7 +29,24 @@ import javax.xml.transform.stream.StreamResult;
 @Service
 public class SignatureService {
 
-    SignatureService() {
+    private final TimeStampService timeStampService;
+    private final XmlNodeLocator xmlNodeLocator;
+    private final XmlNodeSigner xmlNodeSigner;
+
+    public SignatureService(TimeStampService timeStampService) {
+        this.timeStampService = timeStampService;
+        this.xmlNodeLocator = new XmlNodeLocator();
+        this.xmlNodeSigner = new XmlNodeSigner();
+    }
+
+    @Autowired
+    public SignatureService(
+            TimeStampService timeStampService,
+            XmlNodeLocator xmlNodeLocator,
+            XmlNodeSigner xmlNodeSigner) {
+        this.timeStampService = timeStampService;
+        this.xmlNodeLocator = xmlNodeLocator;
+        this.xmlNodeSigner = xmlNodeSigner;
     }
 
     /**
@@ -31,19 +56,21 @@ public class SignatureService {
      * @param customCertificate certificado contendo informações necessárias
      *
      * @return o documento assinado
-     * @throws IOException                          se houver um erro ao ler o arquivo
-     * @throws UnrecoverableKeyException            se a chave privada não puder ser recuperada
-     * @throws KeyStoreException                    se houver um erro com o KeyStore
-     * @throws NoSuchAlgorithmException             se o algoritmo de hash não é suportado
-     * @throws WrongCertificatePasswordException    se a senha do certificado estiver incorreta
+     * @throws IOException                       se houver um erro ao ler o arquivo
+     * @throws UnrecoverableKeyException         se a chave privada não puder ser
+     *                                           recuperada
+     * @throws KeyStoreException                 se houver um erro com o KeyStore
+     * @throws NoSuchAlgorithmException          se o algoritmo de hash não é
+     *                                           suportado
+     * @throws WrongCertificatePasswordException se a senha do certificado estiver
+     *                                           incorreta
      */
     public byte[] signDocument(Path filePath, CustomCertificate customCertificate)
             throws IOException,
             UnrecoverableKeyException,
             KeyStoreException,
             NoSuchAlgorithmException,
-            WrongCertificatePasswordException
-    {
+            WrongCertificatePasswordException {
         var signer = this.getPKCS7Signer(customCertificate);
         byte[] content = Files.readAllBytes(filePath);
         return signer.doAttachedSign(content);
@@ -52,7 +79,8 @@ public class SignatureService {
     /**
      * Retorna um objeto PKCS7Signer a partir de um certificado.
      *
-     * @param customCertificate especialização do certificado, contendo informações necessárias
+     * @param customCertificate especialização do certificado, contendo informações
+     *                          necessárias
      *
      * @return um objeto PKCS7Signer pronto para assinar um documento
      * @throws KeyStoreException         se o tipo de KeyStore não é suportado
@@ -62,11 +90,11 @@ public class SignatureService {
     PKCS7Signer getPKCS7Signer(CustomCertificate customCertificate)
             throws KeyStoreException,
             UnrecoverableKeyException,
-            NoSuchAlgorithmException
-    {
+            NoSuchAlgorithmException {
         var signer = PKCS7Factory.getInstance().factoryDefault();
         signer.setCertificates(customCertificate.certificateChain);
-        signer.setPrivateKey((PrivateKey) customCertificate.keyStore.getKey(customCertificate.alias, customCertificate.password.toCharArray()));
+        signer.setPrivateKey((PrivateKey) customCertificate.keyStore.getKey(customCertificate.alias,
+                customCertificate.password.toCharArray()));
 
         return signer;
     }
@@ -74,44 +102,90 @@ public class SignatureService {
     /**
      * Assina um documento XML a partir de um arquivo e de um par de chaves.
      *
-     * @param filePath     o nome do arquivo a ser assinado
+     * @param filePath          o nome do arquivo a ser assinado
      * @param customCertificate certificado contendo informações necessárias
+     * @param timeStamp         Boleano que indica se a assinatura utilizará o
+     *                          Carimbo do Tempo
      *
      * @return o documento assinado
-     * @throws UnrecoverableKeyException            se a chave privada não puder ser recuperada
-     * @throws KeyStoreException                    se houver um erro com o KeyStore
-     * @throws NoSuchAlgorithmException             se o algoritmo de hash não é suportado
+     * @throws UnrecoverableKeyException se a chave privada não puder ser recuperada
+     * @throws KeyStoreException         se houver um erro com o KeyStore
+     * @throws NoSuchAlgorithmException  se o algoritmo de hash não é suportado
      */
-    public byte[] signXmlDocument(Path filePath, CustomCertificate customCertificate)
+    public byte[] signXmlDocument(Path filePath, CustomCertificate customCertificate, boolean timeStamp, String targetXPath)
             throws Exception {
 
-        var signer = this.getXmlSigner(customCertificate);
+        var signer = this.getXmlSigner(customCertificate, timeStamp);
         Document signed = signer.signEnveloped(true, filePath.toString());
+
+        if (targetXPath != null && !targetXPath.isBlank()) {
+            Element targetElement = xmlNodeLocator.locate(signed, targetXPath);
+            Element root = signed.getDocumentElement();
+            
+            // Demoiselle appends the <ds:Signature> at the root element.
+            // We locate it and move it to the targetXPath element.
+            org.w3c.dom.NodeList signatures = signed.getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature");
+            if (signatures.getLength() > 0) {
+                org.w3c.dom.Node sigNode = signatures.item(signatures.getLength() - 1);
+                
+                if (!targetElement.isSameNode(root)) {
+                    root.removeChild(sigNode);
+                    targetElement.appendChild(sigNode);
+                }
+            }
+        }
+
         return this.documentToBytes(signed);
     }
 
     /**
      * Retorna um objeto XMLSigner a partir de um certificado.
      *
-     * @param customCertificate especialização do certificado, contendo informações necessárias
+     * @param customCertificate especialização do certificado, contendo informações
+     *                          necessárias
      *
      * @return um objeto XMLSigner pronto para assinar um documento
      * @throws KeyStoreException         se o tipo de KeyStore não é suportado
      * @throws UnrecoverableKeyException se a chave privada não puder ser recuperada
      * @throws NoSuchAlgorithmException  se o algoritmo de hash não é suportado
      */
-    XMLSigner getXmlSigner(CustomCertificate customCertificate)
-            throws KeyStoreException, NoSuchAlgorithmException, UnrecoverableKeyException {
+    XMLSigner getXmlSigner(CustomCertificate customCertificate, boolean timeStamp)
+            throws KeyStoreException, NoSuchAlgorithmException, UnrecoverableKeyException, Exception {
         var signer = new XMLSigner();
         signer.setPrivateKey((PrivateKey) customCertificate.keyStore.getKey(customCertificate.alias,
                 customCertificate.password.toCharArray()));
         signer.setCertificateChain(customCertificate.certificateChain);
+
+        if (timeStamp) {
+
+            String accessToken = this.timeStampService.getEncodedCredentials();
+
+            TimeStampConfig.getInstance().setApiSERPRO(true);
+            TimeStampConfig.getInstance().setClientCredentials(accessToken);
+            signer.setPolicyId(XMLPoliciesOID.AD_RT_XADES_2_4.getOID());
+        }
+
         return signer;
     }
 
-     /**
+    /**
+     * Parses the XML file at the given path into a DOM {@link Document}.
+     *
+     * @param filePath path to the XML file
+     * @return the parsed DOM document
+     * @throws Exception if the file cannot be read or parsed
+     */
+    private Document parseXmlToDocument(Path filePath) throws Exception {
+        DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+        dbf.setNamespaceAware(true);
+        return dbf.newDocumentBuilder().parse(filePath.toFile());
+    }
+
+    /**
      * Converte um objeto Document em um array de bytes.
-     * * @param doc o objeto Document a ser convertido.
+     *
+     * @param doc o objeto Document a ser convertido.
+     *
      * @return um array de bytes.
      */
     private byte[] documentToBytes(Document doc) throws Exception {

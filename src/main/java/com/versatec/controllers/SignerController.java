@@ -4,6 +4,7 @@ import com.versatec.customs.FileLocationEnum;
 import com.versatec.customs.WrongCertificatePasswordException;
 import com.versatec.customs.CustomCertificate;
 import com.versatec.customs.VisualSignatureConfig;
+import com.versatec.customs.XmlNodeNotFoundException;
 import com.versatec.services.SignatureFileService;
 import com.versatec.services.SignatureService;
 import com.versatec.services.SignatureValidationService;
@@ -22,6 +23,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
 import io.swagger.v3.oas.annotations.*;
 import io.swagger.v3.oas.annotations.responses.*;
 import io.swagger.v3.oas.annotations.media.*;
@@ -203,14 +205,20 @@ public class SignerController {
     }
 
     @PostMapping(path = "/sign-xml", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "Assina um arquivo XML", description = "Realiza a assinatura digital de um documento xml, utilizando um certificado digital.",  responses = {
-                    @ApiResponse(responseCode = "200", description = "Documento assinado com sucesso", content = @Content(mediaType = "application/pdf")),
-                    @ApiResponse(responseCode = "401", description = "Bad Request - Algum dado enviado é invalido, formato do arquivo ou certificado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String[].class)))
-    })
+    @Operation(summary = "Assina um arquivo XML", description = "Realiza a assinatura digital de um documento xml, utilizando um certificado digital. "
+            + "O par\u00e2metro opcional <b>targetXPath</b> permite direcionar a assinatura para um n\u00f3 espec\u00edfico do XML (ex: <code>/root/IES_Emissora</code>). "
+            + "O par\u00e2metro opcional <b>timeStamp</b> permite adicionar um carimbo do tempo de uma autoridade certificadora na assinatura. "
+            + "Quando omitido, a assinatura \u00e9 aplicada de forma global no documento (comportamento padr\u00e3o).", responses = {
+                    @ApiResponse(responseCode = "200", description = "Documento assinado com sucesso", content = @Content(mediaType = "application/xml")),
+                    @ApiResponse(responseCode = "400", description = "N\u00f3 XML especificado n\u00e3o encontrado no documento", content = @Content(mediaType = "text/plain", schema = @Schema(implementation = String.class))),
+                    @ApiResponse(responseCode = "401", description = "Bad Request - Algum dado enviado \u00e9 inv\u00e1lido, formato do arquivo ou certificado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String[].class)))
+            })
     public ResponseEntity<?> signXml(
             @RequestParam @NotNull MultipartFile file,
             @RequestParam @NotNull MultipartFile certificate,
-            @RequestParam @NotNull String password) throws IOException {
+            @RequestParam @NotNull String password,
+            @RequestParam(required = false, defaultValue = "false") boolean timeStamp,
+            @RequestParam(required = false) String targetXPath) throws IOException {
 
         var filePath = this.fileUtils.uploadFile(file, FileLocationEnum.UPLOAD);
         var certificatePath = this.fileUtils.uploadFile(certificate, FileLocationEnum.UPLOAD);
@@ -219,11 +227,15 @@ public class SignerController {
             var customCertificate = new CustomCertificate(certificatePath, password);
             customCertificate.checkValidity();
 
-            var signedDocument = this.signatureService.signXmlDocument(filePath, customCertificate);
+            byte[] signedDocument = this.signatureService.signXmlDocument(
+                    filePath, customCertificate, timeStamp, targetXPath);
 
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + file.getOriginalFilename())
                     .body(signedDocument);
+
+        } catch (XmlNodeNotFoundException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.status(401).body(e.getMessage());
         } finally {
@@ -236,15 +248,22 @@ public class SignerController {
             @ApiResponse(responseCode = "200", description = "A assinatura é valida", content = @Content(mediaType = "text/plain", schema = @Schema(implementation = String.class))),
             @ApiResponse(responseCode = "400", description = "Bad Request - Algum dado enviado é invalido", content = @Content(mediaType = "text/plain", schema = @Schema(implementation = String[].class)))
     })
-    public ResponseEntity<?> validateXmlSignature(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<String> validateXmlSignature(
+            @RequestParam("file") MultipartFile file) throws IOException {
+
+        var filePath = this.fileUtils.uploadFile(file, FileLocationEnum.UPLOAD);
+
         try {
-            var filePath = this.fileUtils.uploadFile(file, FileLocationEnum.UPLOAD);
             var isValid = this.signatureValidationService.validateXmlSignature(filePath);
 
-            var responseMessage = isValid ? "Sined Document" : "Unsigned document";
+            var responseMessage = isValid ? "Signed document XML" : "Unsigned document XML";
             return ResponseEntity.ok(responseMessage);
-        } catch (IOException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("File upload failed: " + e.getMessage());
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("File upload failed: " + e.getMessage());
+        } finally {
+            this.fileUtils.removeFile(filePath);
         }
     }
 
