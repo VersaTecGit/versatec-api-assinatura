@@ -9,19 +9,27 @@ import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
 public class SecurityConfig {
-    @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http.csrf(AbstractHttpConfigurer::disable)
-                .authorizeHttpRequests(requests ->
-                        requests.requestMatchers(
-                                "/api/v1/qr-code",
-                                "/swagger-ui/**",
-                                "/swagger/**",
-                                "/v1/api-docs/**"
-                        ).permitAll()
-                                .anyRequest().authenticated())
-                .httpBasic(Customizer.withDefaults());
+        @Bean
+        public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+                http.csrf(AbstractHttpConfigurer::disable)
+                                .authorizeHttpRequests(requests -> requests.requestMatchers(
+                                                "/api/v1/qr-code",
+                                                // Callbacks OAuth2 — obrigatoriamente públicos:
+                                                // o browser redireciona para cá após aprovação no app,
+                                                // sem contexto de autenticação. A segurança é garantida
+                                                // pelo protocolo: code single-use + state=jobId validado
+                                                // no banco + PKCE code_verifier (SafeID)
+                                                "/api/v1/safeid/callback",
+                                                "/api/v1/neoid/callback",
+                                                "/swagger-ui/**",
+                                                "/swagger/**",
+                                                "/v1/api-docs/**").permitAll()
+                                                // Status e download exigem autenticação:
+                                                // o sistema cliente usa as mesmas credenciais Basic Auth
+                                                // que usou para chamar o POST /sign-xml
+                                                .anyRequest().authenticated())
+                                .httpBasic(Customizer.withDefaults());
 
-        return http.build();
-    }
+                return http.build();
+        }
 }

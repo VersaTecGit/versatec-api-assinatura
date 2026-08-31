@@ -57,8 +57,8 @@ public class SignatureFileService {
         var downloadPath = fileUtils.getFilePath(signedFileName, FileLocationEnum.DOWNLOAD);
 
         var tempOutputStream = new ByteArrayOutputStream();
-        try (PDDocument stampedDocument = this.createStampedDocument(originalFile, customCertificate,
-                visualSignatureConfig, url)) {
+        try (PDDocument stampedDocument = PDDocument.load(originalFile)) {
+            this.stampDocument(stampedDocument, customCertificate, visualSignatureConfig, url);
             stampedDocument.save(tempOutputStream);
         }
 
@@ -92,12 +92,11 @@ public class SignatureFileService {
      *         páginas.
      * @throws Exception se houver um erro
      */
-    private PDDocument createStampedDocument(
-            File originalFile,
+    private void stampDocument(
+            PDDocument stampedDocument,
             CustomCertificate customCertificate,
             VisualSignatureConfig visualSignatureConfig,
             String url) throws Exception {
-        PDDocument stampedDocument = PDDocument.load(originalFile);
 
         var signatureContent = this.generateSignatureContent(customCertificate, this.getPDSignature(), url);
         var widthSignature = this.getSignatureWidth(url);
@@ -132,7 +131,6 @@ public class SignatureFileService {
                 }
             }
         }
-        return stampedDocument;
     }
 
     /**
