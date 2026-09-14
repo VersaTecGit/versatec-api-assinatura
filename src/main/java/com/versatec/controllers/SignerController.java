@@ -17,6 +17,7 @@ import com.versatec.signature.orchestrator.SafeIdCallbackOrchestrator;
 import com.versatec.signature.resolver.SignatureStrategyResolver;
 import com.versatec.services.SignatureService;
 import com.versatec.utils.FileUtils;
+import com.versatec.utils.XmlNodeLocator;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -58,6 +59,7 @@ public class SignerController {
     public final NeoIdCallbackOrchestrator neoIdCallbackOrchestrator;
     public final SafeIdCallbackOrchestrator safeIdCallbackOrchestrator;
     public final SignatureJobRepository signatureJobRepository;
+    public final XmlNodeLocator xmlNodeLocator;
 
     public SignerController(
             SignatureService signatureService,
@@ -68,7 +70,8 @@ public class SignerController {
             SignatureStrategyResolver signatureStrategyResolver,
             NeoIdCallbackOrchestrator neoIdCallbackOrchestrator,
             SafeIdCallbackOrchestrator safeIdCallbackOrchestrator,
-            SignatureJobRepository signatureJobRepository) {
+            SignatureJobRepository signatureJobRepository,
+            XmlNodeLocator xmlNodeLocator) {
         this.signatureService = signatureService;
         this.signatureFileService = signatureFileService;
         this.signatureValidationService = signatureValidationService;
@@ -78,6 +81,7 @@ public class SignerController {
         this.neoIdCallbackOrchestrator = neoIdCallbackOrchestrator;
         this.safeIdCallbackOrchestrator = safeIdCallbackOrchestrator;
         this.signatureJobRepository = signatureJobRepository;
+        this.xmlNodeLocator = xmlNodeLocator;
     }
 
     @PostMapping(path = "/sign", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -279,6 +283,11 @@ public class SignerController {
                 customCertificate.checkValidity();
             }
 
+            // Early validation of targetXPath — falha rápido antes de qualquer I/O de rede
+            if (targetXPath != null && !targetXPath.isBlank()) {
+                validateXPathExistsInFile(filePath, targetXPath);
+            }
+
             var command = new SignXmlCommand(
                     filePath,
                     file.getOriginalFilename(),
@@ -348,6 +357,27 @@ public class SignerController {
         } finally {
             this.fileUtils.removeFile(filePath);
         }
+    }
+
+    // =========================================================================
+    // Helpers privados
+    // =========================================================================
+
+    /**
+     * Valida que o XPath aponta para um nó existente no arquivo XML dado.
+     * Lança {@link XmlNodeNotFoundException} se não encontrado.
+     */
+    private void validateXPathExistsInFile(Path filePath, String targetXPath) throws Exception {
+        var factory = javax.xml.parsers.DocumentBuilderFactory.newInstance();
+        factory.setNamespaceAware(true);
+        // Desativa acesso a entidades externas (prevenção de XXE)
+        factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+        factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+        factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+        factory.setXIncludeAware(false);
+        factory.setExpandEntityReferences(false);
+        var doc = factory.newDocumentBuilder().parse(filePath.toFile());
+        xmlNodeLocator.locate(doc, targetXPath);
     }
 
     // =========================================================================

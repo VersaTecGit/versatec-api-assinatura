@@ -9,6 +9,8 @@ import com.versatec.safeid.dto.SafeIdSignatureResponse;
 import com.versatec.safeid.dto.SafeIdTokenResponse;
 import com.versatec.signature.orchestrator.SafeIdCallbackOrchestrator;
 import com.versatec.utils.FileUtils;
+import com.versatec.utils.XmlSignatureRelocator;
+import com.versatec.customs.XmlNodeNotFoundException;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -50,6 +52,9 @@ class SafeIdCallbackOrchestratorTest {
     private FileUtils fileUtils;
     private Path xmlFilePath;
 
+    @Mock
+    private XmlSignatureRelocator relocator;
+
     // Dados de teste reutilizados
     private UUID jobId;
     private String codeVerifier;
@@ -59,7 +64,7 @@ class SafeIdCallbackOrchestratorTest {
     @BeforeEach
     void setUp() throws Exception {
         fileUtils = new FileUtils(FileStoragePropertiesMock.create());
-        orchestrator = spy(new SafeIdCallbackOrchestrator(oAuthService, webhookService, jobRepository, fileUtils));
+        orchestrator = spy(new SafeIdCallbackOrchestrator(oAuthService, webhookService, jobRepository, fileUtils, relocator));
 
         // Prepara um arquivo XML de teste
         jobId = UUID.randomUUID();
@@ -153,6 +158,47 @@ class SafeIdCallbackOrchestratorTest {
         ArgumentCaptor<SignatureJob> jobCaptor = ArgumentCaptor.forClass(SignatureJob.class);
         verify(jobRepository).save(jobCaptor.capture());
         assertEquals("contrato_assinado.xml", jobCaptor.getValue().getSignedFileName());
+    }
+
+    @Test
+    void process_shouldCallRelocate() throws Exception {
+        // Arrange
+        SignatureJob jobWithXPath = SignatureJob.builder()
+                .id(jobId).userId("user").documentHash(documentHashBase64)
+                .originalFilePath(xmlFilePath.toString()).originalFileName("contrato.xml")
+                .codeVerifier(codeVerifier).targetXPath("//Destino")
+                .build();
+        when(jobRepository.findById(jobId)).thenReturn(Optional.of(jobWithXPath));
+        when(oAuthService.exchangeCodeForToken(any(), any())).thenReturn(mockTokenResponse());
+        when(oAuthService.sendHashForSignature(any(), any(), any())).thenReturn(mockSignatureResponse());
+
+        // Act
+        orchestrator.process("auth-code-123", jobId);
+
+        // Assert
+        verify(relocator).relocate(any(), eq("//Destino"));
+    }
+
+    @Test
+    void process_shouldFailJobOnXmlNodeNotFoundException() throws Exception {
+        // Arrange
+        SignatureJob jobWithXPath = SignatureJob.builder()
+                .id(jobId).userId("user").documentHash(documentHashBase64)
+                .originalFilePath(xmlFilePath.toString()).originalFileName("contrato.xml")
+                .codeVerifier(codeVerifier).targetXPath("//Invalido")
+                .build();
+        when(jobRepository.findById(jobId)).thenReturn(Optional.of(jobWithXPath));
+        when(oAuthService.exchangeCodeForToken(any(), any())).thenReturn(mockTokenResponse());
+        
+        doThrow(new XmlNodeNotFoundException("//Invalido")).when(relocator).relocate(any(), eq("//Invalido"));
+
+        // Act & Assert
+        assertThrows(SafeIdApiException.class, () -> orchestrator.process("auth-code-123", jobId));
+        
+        ArgumentCaptor<SignatureJob> jobCaptor = ArgumentCaptor.forClass(SignatureJob.class);
+        verify(jobRepository).save(jobCaptor.capture());
+        assertEquals(JobStatus.FAILED, jobCaptor.getValue().getStatus());
+        assertTrue(jobCaptor.getValue().getErrorMessage().contains("//Invalido"));
     }
 
     @Test

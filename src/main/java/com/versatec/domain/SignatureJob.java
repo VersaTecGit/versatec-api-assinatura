@@ -119,6 +119,13 @@ public class SignatureJob {
     @Column(name = "return_url", length = 2048)
     private String returnUrl;
 
+    /**
+     * XPath do nó onde a assinatura XML deve ser inserida.
+     * Opcional (usado para Diploma Digital, etc.).
+     */
+    @Column(name = "target_xpath", length = 1024)
+    private String targetXPath;
+
     protected SignatureJob() {}
 
     private SignatureJob(Builder builder) {
@@ -133,6 +140,7 @@ public class SignatureJob {
         this.codeVerifier = builder.codeVerifier;
         this.webhookUrl = builder.webhookUrl;
         this.returnUrl = builder.returnUrl;
+        this.targetXPath = builder.targetXPath;
     }
 
     public static Builder builder() {
@@ -192,6 +200,7 @@ public class SignatureJob {
     public String getCodeVerifier() { return codeVerifier; }
     public String getWebhookUrl() { return webhookUrl; }
     public String getReturnUrl() { return returnUrl; }
+    public String getTargetXPath() { return targetXPath; }
 
     // --- Builder ---
 
@@ -207,6 +216,7 @@ public class SignatureJob {
         private String codeVerifier;
         private String webhookUrl;
         private String returnUrl;
+        private String targetXPath;
 
         public Builder id(UUID id) { this.id = id; return this; }
         public Builder userId(String userId) { this.userId = userId; return this; }
@@ -219,6 +229,7 @@ public class SignatureJob {
         public Builder codeVerifier(String codeVerifier) { this.codeVerifier = codeVerifier; return this; }
         public Builder webhookUrl(String webhookUrl) { this.webhookUrl = webhookUrl; return this; }
         public Builder returnUrl(String returnUrl) { this.returnUrl = returnUrl; return this; }
+        public Builder targetXPath(String targetXPath) { this.targetXPath = targetXPath; return this; }
 
         public SignatureJob build() {
             if (id == null) id = UUID.randomUUID();
