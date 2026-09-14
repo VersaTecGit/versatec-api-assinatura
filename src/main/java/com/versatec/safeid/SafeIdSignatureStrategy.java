@@ -81,6 +81,7 @@ public class SafeIdSignatureStrategy implements SignatureStrategy {
                 .codeVerifier(codeVerifier)
                 .webhookUrl(command.webhookUrl())
                 .returnUrl(command.returnUrl())
+                .targetXPath(command.targetXPath())
                 .build();
         jobRepository.save(job);
 
