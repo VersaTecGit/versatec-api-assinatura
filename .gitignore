@@ -38,4 +38,8 @@ reuniao1.txt
 
 uploads/
 !uploads/.gitkeep
+downloads/
+!downloads/.gitkeep
+assets/*.pfx
+assets/*.p12
 .tmp-xades/

@@ -41,6 +41,24 @@ class SignatureJobRepositoryTest {
         assertEquals("user-100", found.getUserId());
         assertEquals("hash-123456", found.getDocumentHash());
         assertEquals(JobStatus.PENDING, found.getStatus());
+        assertNull(found.getTargetXPath());
+    }
+
+    @Test
+    void saveAndFindById_withTargetXPath_shouldPersistCorrectly() {
+        SignatureJob job = SignatureJob.builder()
+                .userId("user-xpath")
+                .documentHash("hash-xpath")
+                .originalFilePath("/tmp/orig2.xml")
+                .originalFileName("orig2.xml")
+                .targetXPath("//TargetNode")
+                .build();
+
+        SignatureJob saved = repository.save(job);
+        assertNotNull(saved.getId());
+
+        SignatureJob found = repository.findById(saved.getId()).orElseThrow();
+        assertEquals("//TargetNode", found.getTargetXPath());
     }
 
     @Test

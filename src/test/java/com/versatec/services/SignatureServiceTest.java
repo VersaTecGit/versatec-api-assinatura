@@ -9,6 +9,7 @@ import com.versatec.mocks.FileStoragePropertiesMock;
 import com.versatec.utils.FileUtils;
 import com.versatec.utils.XmlNodeLocator;
 import com.versatec.utils.XmlNodeSigner;
+import com.versatec.utils.XmlSignatureRelocator;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.demoiselle.signer.policy.impl.cades.pkcs7.PKCS7Signer;
@@ -48,7 +49,10 @@ class SignatureServiceTest {
 
         this.fileUtils = new FileUtils(FileStoragePropertiesMock.create());
 
-        this.signatureService = spy(new SignatureService(new TimeStampService()));
+        this.signatureService = spy(new SignatureService(
+                new TimeStampService(),
+                new XmlNodeSigner(),
+                new XmlSignatureRelocator(new XmlNodeLocator())));
 
         var certificatePath = fileUtils.getFilePath("testCert.pfx", FileLocationEnum.ASSET);
         customCertificate = new CustomCertificate(certificatePath, "123456");
@@ -83,17 +87,20 @@ class SignatureServiceTest {
 
     @Test
     void testConstructor_WithOnlyTimeStampService_shouldInitializeAllFields() {
-        var service = new SignatureService(new TimeStampService());
+        var service = new SignatureService(
+                new TimeStampService(),
+                new XmlNodeSigner(),
+                new XmlSignatureRelocator(new XmlNodeLocator()));
         assertNotNull(service);
     }
 
     @Test
     void testConstructor_WithAllParameters_shouldInitializeAllFields() {
         var mockTimeStampService = mock(TimeStampService.class);
-        var mockXmlNodeLocator = mock(XmlNodeLocator.class);
         var mockXmlNodeSigner = mock(XmlNodeSigner.class);
+        var mockXmlSignatureRelocator = mock(XmlSignatureRelocator.class);
 
-        var service = new SignatureService(mockTimeStampService, mockXmlNodeLocator, mockXmlNodeSigner);
+        var service = new SignatureService(mockTimeStampService, mockXmlNodeSigner, mockXmlSignatureRelocator);
         assertNotNull(service);
     }
 
@@ -117,7 +124,10 @@ class SignatureServiceTest {
     @Test
     void testSignXmlDocument_withoutTargetXPath_usingDefaultConstructor() throws Exception {
         // Arrange
-        var service = spy(new SignatureService(new TimeStampService()));
+        var service = spy(new SignatureService(
+                new TimeStampService(),
+                new XmlNodeSigner(),
+                new XmlSignatureRelocator(new XmlNodeLocator())));
         var mockXmlSigner = mock(XMLSigner.class);
         var testDoc = createTestDocument();
 
@@ -136,18 +146,16 @@ class SignatureServiceTest {
     void testSignXmlDocument_withTargetXPath_shouldLocateAndMoveSignature() throws Exception {
         // Arrange
         var mockTimeStampService = mock(TimeStampService.class);
-        var mockXmlNodeLocator = mock(XmlNodeLocator.class);
         var mockXmlNodeSigner = mock(XmlNodeSigner.class);
+        var mockXmlSignatureRelocator = mock(XmlSignatureRelocator.class);
 
-        var service = spy(new SignatureService(mockTimeStampService, mockXmlNodeLocator, mockXmlNodeSigner));
+        var service = spy(new SignatureService(mockTimeStampService, mockXmlNodeSigner, mockXmlSignatureRelocator));
 
         var mockXmlSigner = mock(XMLSigner.class);
         var testDoc = createTestDocument();
-        var targetElement = (Element) testDoc.getElementsByTagName("targetNode").item(0);
 
         doReturn(mockXmlSigner).when(service).getXmlSigner(any(), anyBoolean());
         when(mockXmlSigner.signEnveloped(anyBoolean(), anyString())).thenReturn(testDoc);
-        when(mockXmlNodeLocator.locate(testDoc, "targetNode")).thenReturn(targetElement);
 
         // Act
         byte[] result = service.signXmlDocument(BLANK_PDF, customCertificate, false, "targetNode");
@@ -155,11 +163,7 @@ class SignatureServiceTest {
         // Assert
         assertNotNull(result);
         verify(mockXmlSigner).signEnveloped(true, BLANK_PDF.toString());
-        verify(mockXmlNodeLocator).locate(testDoc, "targetNode");
-
-        // Check that signature element was moved under targetNode
-        var sigNodeList = targetElement.getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature");
-        assertEquals(1, sigNodeList.getLength());
+        verify(mockXmlSignatureRelocator).relocate(testDoc, "targetNode");
     }
 
     private Document createTestDocument() throws Exception {

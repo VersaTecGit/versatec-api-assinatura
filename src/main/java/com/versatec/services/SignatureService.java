@@ -3,8 +3,8 @@ package com.versatec.services;
 import com.versatec.customs.CustomCertificate;
 import com.versatec.customs.WrongCertificatePasswordException;
 import com.versatec.customs.XmlNodeNotFoundException;
-import com.versatec.utils.XmlNodeLocator;
 import com.versatec.utils.XmlNodeSigner;
+import com.versatec.utils.XmlSignatureRelocator;
 import org.demoiselle.signer.policy.impl.cades.factory.PKCS7Factory;
 import org.demoiselle.signer.policy.impl.cades.pkcs7.PKCS7Signer;
 import org.demoiselle.signer.policy.impl.xades.XMLPoliciesOID;
@@ -30,23 +30,16 @@ import javax.xml.transform.stream.StreamResult;
 public class SignatureService {
 
     private final TimeStampService timeStampService;
-    private final XmlNodeLocator xmlNodeLocator;
     private final XmlNodeSigner xmlNodeSigner;
+    private final XmlSignatureRelocator xmlSignatureRelocator;
 
-    public SignatureService(TimeStampService timeStampService) {
-        this.timeStampService = timeStampService;
-        this.xmlNodeLocator = new XmlNodeLocator();
-        this.xmlNodeSigner = new XmlNodeSigner();
-    }
-
-    @Autowired
     public SignatureService(
             TimeStampService timeStampService,
-            XmlNodeLocator xmlNodeLocator,
-            XmlNodeSigner xmlNodeSigner) {
+            XmlNodeSigner xmlNodeSigner,
+            XmlSignatureRelocator xmlSignatureRelocator) {
         this.timeStampService = timeStampService;
-        this.xmlNodeLocator = xmlNodeLocator;
         this.xmlNodeSigner = xmlNodeSigner;
+        this.xmlSignatureRelocator = xmlSignatureRelocator;
     }
 
     /**
@@ -118,22 +111,7 @@ public class SignatureService {
         var signer = this.getXmlSigner(customCertificate, timeStamp);
         Document signed = signer.signEnveloped(true, filePath.toString());
 
-        if (targetXPath != null && !targetXPath.isBlank()) {
-            Element targetElement = xmlNodeLocator.locate(signed, targetXPath);
-            Element root = signed.getDocumentElement();
-            
-            // Demoiselle appends the <ds:Signature> at the root element.
-            // We locate it and move it to the targetXPath element.
-            org.w3c.dom.NodeList signatures = signed.getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature");
-            if (signatures.getLength() > 0) {
-                org.w3c.dom.Node sigNode = signatures.item(signatures.getLength() - 1);
-                
-                if (!targetElement.isSameNode(root)) {
-                    root.removeChild(sigNode);
-                    targetElement.appendChild(sigNode);
-                }
-            }
-        }
+        xmlSignatureRelocator.relocate(signed, targetXPath);
 
         return this.documentToBytes(signed);
     }

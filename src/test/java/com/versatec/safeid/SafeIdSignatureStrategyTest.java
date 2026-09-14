@@ -149,6 +149,19 @@ class SafeIdSignatureStrategyTest {
     }
 
     @Test
+    void signXml_shouldPersistTargetXPath() throws Exception {
+        var command = new SignXmlCommand(
+                xmlFilePath, "contrato.xml", null, false, "//Destino",
+                "user-abc", null, null);
+
+        strategy.signXml(command);
+
+        ArgumentCaptor<SignatureJob> captor = ArgumentCaptor.forClass(SignatureJob.class);
+        verify(jobRepository).save(captor.capture());
+        assertEquals("//Destino", captor.getValue().getTargetXPath());
+    }
+
+    @Test
     void signXml_pendingResult_shouldContainGeneratedJobId() throws Exception {
         var command = buildCommand(xmlFilePath, "contrato.xml", null, null);
 
