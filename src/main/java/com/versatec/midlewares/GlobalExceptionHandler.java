@@ -52,6 +52,39 @@ public class GlobalExceptionHandler {
                 .body("Falha no processamento do SafeID: " + exception.getMessage());
     }
 
+    /**
+     * Intercepta falhas de conversão de parâmetros de requisição (ex: enum inválido).
+     * Ocorre quando, por exemplo, {@code signatureType=A!} é enviado em vez de {@code A1}.
+     *
+     * @param exception exceção lançada pelo Spring ao tentar converter um @RequestParam
+     * @return 400 com mensagem indicando os valores aceitos
+     */
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<String> handleMethodArgumentTypeMismatch(
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException exception) {
+
+        String paramName = exception.getName();
+        String invalidValue = String.valueOf(exception.getValue());
+        Class<?> requiredType = exception.getRequiredType();
+
+        String message;
+        if (requiredType != null && requiredType.isEnum()) {
+            Object[] constants = requiredType.getEnumConstants();
+            String validValues = java.util.Arrays.stream(constants)
+                    .map(Object::toString)
+                    .collect(java.util.stream.Collectors.joining(", "));
+            message = String.format(
+                    "Valor inválido para o parâmetro '%s': '%s'. Valores aceitos: [%s].",
+                    paramName, invalidValue, validValues);
+        } else {
+            message = String.format(
+                    "Valor inválido para o parâmetro '%s': '%s'.",
+                    paramName, invalidValue);
+        }
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(message);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<String> handleGenericException(Exception exception) {
         return ResponseEntity

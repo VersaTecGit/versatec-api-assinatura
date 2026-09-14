@@ -10,6 +10,8 @@ import com.versatec.safeid.SafeIdWebhookService;
 import com.versatec.safeid.dto.SafeIdSignatureResponse;
 import com.versatec.safeid.dto.SafeIdTokenResponse;
 import com.versatec.utils.FileUtils;
+import com.versatec.utils.XmlSignatureRelocator;
+import com.versatec.customs.XmlNodeNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -52,15 +54,18 @@ public class SafeIdCallbackOrchestrator {
     private final SafeIdWebhookService webhookService;
     private final SignatureJobRepository jobRepository;
     private final FileUtils fileUtils;
+    private final XmlSignatureRelocator relocator;
 
     public SafeIdCallbackOrchestrator(SafeIdOAuthService oAuthService,
                                       SafeIdWebhookService webhookService,
                                       SignatureJobRepository jobRepository,
-                                      FileUtils fileUtils) {
+                                      FileUtils fileUtils,
+                                      XmlSignatureRelocator relocator) {
         this.oAuthService = oAuthService;
         this.webhookService = webhookService;
         this.jobRepository = jobRepository;
         this.fileUtils = fileUtils;
+        this.relocator = relocator;
     }
 
     /**
@@ -136,11 +141,21 @@ public class SafeIdCallbackOrchestrator {
             byte[] fileContent = Files.readAllBytes(Path.of(job.getOriginalFilePath()));
             org.w3c.dom.Document signedDocument = xmlSigner.signEnveloped(fileContent);
 
+            relocator.relocate(signedDocument, job.getTargetXPath());
+
             // Converte o Document assinado de volta para bytes
-            java.io.ByteArrayOutputStream outputStream = new java.io.ByteArrayOutputStream();
-            javax.xml.transform.Transformer transformer = javax.xml.transform.TransformerFactory.newInstance().newTransformer();
-            transformer.transform(new javax.xml.transform.dom.DOMSource(signedDocument), new javax.xml.transform.stream.StreamResult(outputStream));
-            byte[] signedContent = outputStream.toByteArray();
+            byte[] signedContent;
+            try (java.io.ByteArrayOutputStream outputStream = new java.io.ByteArrayOutputStream()) {
+                javax.xml.transform.TransformerFactory tf = javax.xml.transform.TransformerFactory.newInstance();
+                // Prevenição de SSRF via XXE no TransformerFactory
+                tf.setAttribute(javax.xml.XMLConstants.ACCESS_EXTERNAL_DTD, "");
+                tf.setAttribute(javax.xml.XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "");
+                javax.xml.transform.Transformer transformer = tf.newTransformer();
+                transformer.transform(
+                        new javax.xml.transform.dom.DOMSource(signedDocument),
+                        new javax.xml.transform.stream.StreamResult(outputStream));
+                signedContent = outputStream.toByteArray();
+            }
 
             // Passo 5 — Persiste o arquivo XML final no disco
             String signedFileName = buildSignedFileName(job.getOriginalFileName());
@@ -162,6 +177,12 @@ public class SafeIdCallbackOrchestrator {
             failJobAndNotify(job, e.getMessage());
             throw e;
 
+        } catch (XmlNodeNotFoundException e) {
+            String msg = "O nó especificado pelo targetXPath (" + job.getTargetXPath() + ") não foi encontrado. O XML pode ter sido modificado desde a requisição inicial.";
+            log.error("Erro no job {}: {}", jobId, msg);
+            failJobAndNotify(job, msg);
+            throw new SafeIdApiException(msg, e);
+            
         } catch (Exception e) {
             String msg = "Erro inesperado no processamento do callback: " + e.getMessage();
             log.error("Erro inesperado no job {}: {}", jobId, e.getMessage());
