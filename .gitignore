@@ -42,4 +42,5 @@ downloads/
 !downloads/.gitkeep
 assets/*.pfx
 assets/*.p12
+!assets/testCert.pfx
 .tmp-xades/
